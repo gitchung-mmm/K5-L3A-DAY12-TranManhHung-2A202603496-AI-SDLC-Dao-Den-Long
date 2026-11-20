@@ -83,12 +83,72 @@ export class IslandSceneView {
     opacity: 0.35
   });
 
+  // Shared geometries & materials for shades (fast even with 200 shades in bench mode)
+  private readonly shadeBodyGeo = new THREE.SphereGeometry(0.65, 10, 10);
+  private readonly shadeEyeGeo = new THREE.SphereGeometry(0.11, 6, 6);
+  private readonly shadeMatNormal = new THREE.MeshStandardMaterial({
+    color: PALETTE.shadeBody,
+    emissive: PALETTE.shadeEdge,
+    emissiveIntensity: 0.85,
+    roughness: 0.55
+  });
+  private readonly shadeMatColorblind = new THREE.MeshStandardMaterial({
+    color: PALETTE.shadeBody,
+    emissive: 0x00b3ff,
+    emissiveIntensity: 0.9,
+    roughness: 0.55
+  });
+  private readonly shadeMatDrain = new THREE.MeshStandardMaterial({
+    color: PALETTE.shadeBody,
+    emissive: PALETTE.shadeEdge,
+    emissiveIntensity: 1.4,
+    roughness: 0.45
+  });
+  private readonly shadeMatDrainCB = new THREE.MeshStandardMaterial({
+    color: PALETTE.shadeBody,
+    emissive: 0x00b3ff,
+    emissiveIntensity: 1.4,
+    roughness: 0.45
+  });
+  private readonly shadeMatStunned = new THREE.MeshStandardMaterial({
+    color: PALETTE.shadeStunned,
+    emissive: PALETTE.shadeStunned,
+    emissiveIntensity: 0.7,
+    roughness: 0.6
+  });
+  private readonly shadeEyeMatNormal = new THREE.MeshBasicMaterial({ color: PALETTE.shadeEdge });
+  private readonly shadeEyeMatCB = new THREE.MeshBasicMaterial({ color: 0x00b3ff });
+
   private currentNight: NightNumber = 1;
   private animTime = 0;
   private colorblind = false;
+  private reducedMotion = false;
+  private benchMode = false;
 
   setColorblind(enabled: boolean): void {
     this.colorblind = enabled;
+  }
+
+  setReducedMotion(enabled: boolean): void {
+    this.reducedMotion = enabled;
+  }
+
+  setBenchMode(enabled: boolean): void {
+    this.benchMode = enabled;
+    if (enabled) {
+      this.renderer.setPixelRatio(1);
+    }
+  }
+
+  getRendererInfo(): string {
+    try {
+      const gl = this.renderer.getContext();
+      const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : "WebGL2";
+      return `Three.js 0.170 / ${gpu}`;
+    } catch {
+      return "Three.js 0.170 WebGL2";
+    }
   }
 
   constructor(container: HTMLElement, private readonly tuning: TuningConfig) {
@@ -499,27 +559,17 @@ export class IslandSceneView {
   private createShadeGroup(id: string): THREE.Group {
     const group = new THREE.Group();
 
-    const body = new THREE.Mesh(
-      new THREE.SphereGeometry(0.65, 14, 14),
-      new THREE.MeshStandardMaterial({
-        color: PALETTE.shadeBody,
-        emissive: PALETTE.shadeEdge,
-        emissiveIntensity: 0.75,
-        roughness: 0.55
-      })
-    );
+    const body = new THREE.Mesh(this.shadeBodyGeo, this.shadeMatNormal);
     body.scale.set(1, 1.35, 1);
     body.position.y = 0.95;
-    body.castShadow = true;
+    body.castShadow = !this.benchMode;
     body.name = "body";
     group.add(body);
 
-    const eyeMat = new THREE.MeshBasicMaterial({ color: PALETTE.shadeEdge });
-    const eyeGeo = new THREE.SphereGeometry(0.11, 8, 8);
-    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    const leftEye = new THREE.Mesh(this.shadeEyeGeo, this.shadeEyeMatNormal);
     leftEye.position.set(-0.2, 1.12, 0.52);
     leftEye.name = "eyeL";
-    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    const rightEye = new THREE.Mesh(this.shadeEyeGeo, this.shadeEyeMatNormal);
     rightEye.position.set(0.2, 1.12, 0.52);
     rightEye.name = "eyeR";
     group.add(leftEye, rightEye);
@@ -606,7 +656,13 @@ export class IslandSceneView {
     return { x: v.x, y: v.y, inFront, onScreen };
   }
 
-  sync(snapshot: GameStateSnapshot, camYawDeg: number, dt: number, cameraFocus: Vec3 | null = null): void {
+  sync(
+    snapshot: GameStateSnapshot,
+    camYawDeg: number,
+    dt: number,
+    cameraFocus: Vec3 | null = null,
+    overrideCameraPos: Vec3 | null = null
+  ): void {
     if (snapshot.night !== this.currentNight) {
       this.loadNight(snapshot.night);
     }
@@ -616,9 +672,9 @@ export class IslandSceneView {
     this.playerGroup.visible = snapshot.player.respawnTimer <= 0;
     this.playerGroup.position.set(snapshot.player.pos[0], snapshot.player.pos[1], snapshot.player.pos[2]);
     this.playerGroup.rotation.y = Math.atan2(snapshot.player.facing[0], snapshot.player.facing[1]);
-    this.playerHatLantern.position.x = Math.sin(this.animTime * 4) * 0.05;
+    this.playerHatLantern.position.x = this.reducedMotion ? 0 : Math.sin(this.animTime * 4) * 0.05;
     this.playerLanternLight.intensity =
-      snapshot.player.invulnTimer > 0
+      snapshot.player.invulnTimer > 0 && !this.reducedMotion
         ? Math.sin(this.animTime * 28) > 0
           ? 3.2
           : 0.4
@@ -632,7 +688,7 @@ export class IslandSceneView {
     this.fog.density = 0.012 - ratio * 0.005;
 
     // 3. Lanterns (v1.2: fuel bar, 1 Hz low-fuel blink, squished/torn unlit lantern)
-    const lowFuelBlinkOn = Math.floor(this.animTime * 2) % 2 === 0; // 1 Hz blink
+    const lowFuelBlinkOn = this.reducedMotion ? true : Math.floor(this.animTime * 2) % 2 === 0;
     for (const lantern of snapshot.lanterns) {
       let visual = this.lanternVisuals.get(lantern.id);
       if (!visual) {
@@ -720,25 +776,20 @@ export class IslandSceneView {
         group.rotation.y = Math.atan2(dx, dz);
       }
       group.scale.setScalar(shade.state === "spawning" ? 0.65 : 1.0);
-      const shadeAccent = this.colorblind ? 0x00b3ff : PALETTE.shadeEdge;
       const body = group.getObjectByName("body") as THREE.Mesh | undefined;
-      if (body && body.material instanceof THREE.MeshStandardMaterial) {
+      if (body) {
         if (shade.state === "stunned") {
-          body.material.color.setHex(PALETTE.shadeStunned);
-          body.material.emissive.setHex(PALETTE.shadeStunned);
-          body.material.emissiveIntensity = 0.7;
+          body.material = this.shadeMatStunned;
+        } else if (shade.state === "drain") {
+          body.material = this.colorblind ? this.shadeMatDrainCB : this.shadeMatDrain;
         } else {
-          body.material.color.setHex(PALETTE.shadeBody);
-          body.material.emissive.setHex(shadeAccent);
-          body.material.emissiveIntensity =
-            shade.state === "drain" ? 1.35 : shade.state === "recoil" ? 0.4 : 0.85;
+          body.material = this.colorblind ? this.shadeMatColorblind : this.shadeMatNormal;
         }
       }
+      const eyeMat = this.colorblind ? this.shadeEyeMatCB : this.shadeEyeMatNormal;
       for (const eyeName of ["eyeL", "eyeR"]) {
         const eye = group.getObjectByName(eyeName) as THREE.Mesh | undefined;
-        if (eye && eye.material instanceof THREE.MeshBasicMaterial) {
-          eye.material.color.setHex(shadeAccent);
-        }
+        if (eye) eye.material = eyeMat;
       }
     }
     for (const [id, group] of this.shadeGroups.entries()) {
@@ -830,20 +881,27 @@ export class IslandSceneView {
     }
 
     // 11. Camera
-    const focus = cameraFocus ?? [
-      snapshot.player.pos[0],
-      snapshot.player.pos[1] + 1.3,
-      snapshot.player.pos[2]
-    ];
-    const yawRad = (camYawDeg * Math.PI) / 180;
-    const camDist = cameraFocus ? 15 : 12;
-    const camHeight = cameraFocus ? 6.5 : 7.0;
-    const targetCamX = focus[0] - Math.sin(yawRad) * camDist;
-    const targetCamZ = focus[2] - Math.cos(yawRad) * camDist;
-    const targetCamY = Math.max(1.5, focus[1] + camHeight - 1.3);
+    if (overrideCameraPos) {
+      this.camera.position.set(overrideCameraPos[0], overrideCameraPos[1], overrideCameraPos[2]);
+      const look = cameraFocus ?? [0, 0, 0];
+      this.camera.lookAt(look[0], look[1], look[2]);
+    } else {
+      const focus = cameraFocus ?? [
+        snapshot.player.pos[0],
+        snapshot.player.pos[1] + 1.3,
+        snapshot.player.pos[2]
+      ];
+      const yawRad = (camYawDeg * Math.PI) / 180;
+      const camDist = cameraFocus ? 15 : 12;
+      const camHeight = cameraFocus ? 6.5 : 7.0;
+      const targetCamX = focus[0] - Math.sin(yawRad) * camDist;
+      const targetCamZ = focus[2] - Math.cos(yawRad) * camDist;
+      const targetCamY = Math.max(1.5, focus[1] + camHeight - 1.3);
 
-    this.camera.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.16);
-    this.camera.lookAt(focus[0], focus[1], focus[2]);
+      const lerpAlpha = this.reducedMotion ? 1.0 : 0.16;
+      this.camera.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), lerpAlpha);
+      this.camera.lookAt(focus[0], focus[1], focus[2]);
+    }
 
     this.renderer.render(this.scene, this.camera);
   }
