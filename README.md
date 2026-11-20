@@ -1,5 +1,7 @@
 # Đảo Đèn Lồng — v1.0.0 (`K5-L3A-DAY12-TranManhHung-2A202603496`)
 
+> **Video demo (`Demo.mp4`):** [Xem / Tải từ Release v1.0.0](https://github.com/gitchung-mmm/K5-L3A-DAY12-TranManhHung-2A202603496-AI-SDLC-Dao-Den-Long/releases/download/v1.0.0/Demo.mp4) · [Trang Release v1.0.0](https://github.com/gitchung-mmm/K5-L3A-DAY12-TranManhHung-2A202603496-AI-SDLC-Dao-Den-Long/releases/tag/v1.0.0)
+>
 > Game 3D góc nhìn thứ ba qua **3 Đêm** (*Đảo Bến*, *Đảo Cau*, *Đảo Chuông*): điều khiển **Mây**, người giữ đèn nhỏ tuổi đội nón lá, thu thập đom đóm để thắp sáng và châm dầu giữ các **Đèn Lồng Lớn** sáng tới bình minh, đối mặt với **Bóng Mực** và **Gió Lạc**, tận dụng kỹ năng **Lướt**, **Bục nhảy** và **Bùa Gió**.
 
 ---
