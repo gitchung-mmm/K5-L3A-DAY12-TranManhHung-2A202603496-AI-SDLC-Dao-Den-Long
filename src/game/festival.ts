@@ -16,6 +16,9 @@ export class LanternFestival {
   private readonly memories: IslandMemories;
   private readonly tan = new THREE.Group();
   private readonly tanTail = new THREE.Group();
+  private readonly rogueBody = new THREE.Group();
+  private readonly rogueHat = new THREE.Group();
+  private readonly rogueTassel = new THREE.Group();
   private readonly rogueLegs: THREE.Group[] = [];
   private readonly rogueArms: THREE.Group[] = [];
   private readonly whale = new THREE.Group();
@@ -79,25 +82,106 @@ export class LanternFestival {
     this.shadow.scale.set(6, 2.5, 1);
     this.shadow.visible = false;
 
-    littleLantern(this.rogue, 0, 0.9, 0, paper(0x83dcd9));
-    // Đèn Lạc: cheeky face, swinging little arms and stepping legs
-    const faceMat = paper(0x1d2b3a);
-    for (const x of [-0.1, 0.1]) shape(this.rogue, new THREE.SphereGeometry(0.04, 6, 5), faceMat, x, 0.98, 0.27);
-    shape(this.rogue, new THREE.TorusGeometry(0.07, 0.014, 5, 10, Math.PI), faceMat, 0, 0.9, 0.28).rotation.z = Math.PI;
-    for (const x of [-0.14, 0.14]) {
+    // Đèn Lạc: sculpted ribbed jade-turquoise lantern spirit with tilted mini straw cap,
+    // expressive mischievous face, swinging arms (holding a tiny stolen mote), and stepping boots
+    const jadeLanternMat = new THREE.MeshStandardMaterial({
+      color: 0x83dcd9,
+      emissive: 0x38b2ac,
+      emissiveIntensity: 0.95,
+      roughness: 0.42
+    });
+    const bambooMat = new THREE.MeshStandardMaterial({ color: 0x5c3d22, roughness: 0.85 });
+    const rogueGoldMat = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 0.35, roughness: 0.4 });
+    const rogueRedMat = new THREE.MeshStandardMaterial({ color: 0xc8102e, roughness: 0.6 });
+    const hatStrawMat = new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.85 });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.85 });
+    const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const darkEyeMat = new THREE.MeshBasicMaterial({ color: 0x162432 });
+    const blushMat = new THREE.MeshBasicMaterial({ color: 0xf4a0a0 });
+
+    this.rogueBody.position.y = 0.96;
+    this.rogue.add(this.rogueBody);
+
+    // Ribbed LatheGeometry paper lantern torso
+    const barrelPts = [
+      new THREE.Vector2(0.18, -0.36),
+      new THREE.Vector2(0.32, -0.24),
+      new THREE.Vector2(0.38, 0.0),
+      new THREE.Vector2(0.32, 0.24),
+      new THREE.Vector2(0.18, 0.36)
+    ];
+    const barrelGeo = new THREE.LatheGeometry(barrelPts, 20);
+    shape(this.rogueBody, barrelGeo, jadeLanternMat);
+
+    // 3 bamboo ribs & gold top/bottom collars
+    for (const [ry, rr] of [
+      [0, 0.385],
+      [0.2, 0.335],
+      [-0.2, 0.335]
+    ] as Array<[number, number]>) {
+      const rib = shape(this.rogueBody, new THREE.TorusGeometry(rr, 0.014, 6, 22), bambooMat, 0, ry, 0);
+      rib.rotation.x = Math.PI / 2;
+    }
+    shape(this.rogueBody, new THREE.CylinderGeometry(0.19, 0.22, 0.055, 12), rogueGoldMat, 0, 0.37, 0);
+    shape(this.rogueBody, new THREE.CylinderGeometry(0.22, 0.19, 0.055, 12), rogueGoldMat, 0, -0.37, 0);
+
+    // Soft jade glow aura
+    const rogueLight = new THREE.PointLight(0x83dcd9, 1.4, 6.5);
+    rogueLight.position.set(0, 0, 0.25);
+    this.rogueBody.add(rogueLight);
+
+    // Tilted jaunty mini nón lá / leaf hat with golden bell
+    this.rogueHat.position.set(0, 0.42, 0);
+    this.rogueHat.rotation.set(-0.08, 0, 0.16);
+    shape(this.rogueHat, new THREE.ConeGeometry(0.46, 0.24, 22), hatStrawMat, 0, 0.1, 0);
+    const miniRim = shape(this.rogueHat, new THREE.TorusGeometry(0.45, 0.014, 6, 24), rogueRedMat, 0, -0.01, 0);
+    miniRim.rotation.x = Math.PI / 2;
+    shape(this.rogueHat, new THREE.SphereGeometry(0.045, 8, 8), rogueGoldMat, 0, 0.24, 0);
+    this.rogueBody.add(this.rogueHat);
+
+    // Hanging red tassel under lantern body
+    this.rogueTassel.position.set(0, -0.4, 0);
+    shape(this.rogueTassel, new THREE.SphereGeometry(0.04, 6, 6), rogueGoldMat);
+    shape(this.rogueTassel, new THREE.CylinderGeometry(0.014, 0.006, 0.22, 6).translate(0, -0.11, 0), rogueRedMat);
+    this.rogueBody.add(this.rogueTassel);
+
+    // Expressive mischievous face (sclera, pupils, catchlights, brows, rosy cheeks, grin)
+    for (const sx of [-1, 1]) {
+      const sclera = shape(this.rogueBody, new THREE.SphereGeometry(0.072, 10, 8), whiteMat, sx * 0.125, 0.06, 0.34);
+      sclera.scale.set(0.95, 1.15, 0.55);
+      shape(this.rogueBody, new THREE.SphereGeometry(0.046, 8, 8), darkEyeMat, sx * 0.125, 0.06, 0.375);
+      shape(this.rogueBody, new THREE.SphereGeometry(0.016, 6, 6), whiteMat, sx * 0.125 + 0.018, 0.085, 0.405);
+      const brow = shape(this.rogueBody, new THREE.BoxGeometry(0.11, 0.022, 0.025), darkEyeMat, sx * 0.125, 0.165, 0.35);
+      brow.rotation.z = sx * -0.25;
+      const cheek = shape(this.rogueBody, new THREE.SphereGeometry(0.048, 8, 6), blushMat, sx * 0.21, -0.03, 0.32);
+      cheek.scale.set(1.1, 0.65, 0.35);
+    }
+    const grin = shape(this.rogueBody, new THREE.TorusGeometry(0.08, 0.016, 6, 12, Math.PI), darkEyeMat, 0, -0.04, 0.365);
+    grin.rotation.z = Math.PI;
+
+    // Articulated stepping legs with tiny boots
+    for (const x of [-0.15, 0.15]) {
       const leg = new THREE.Group();
-      leg.position.set(x, 0.56, 0);
-      shape(leg, new THREE.CylinderGeometry(0.035, 0.028, 0.46, 6).translate(0, -0.23, 0), ivory);
-      shape(leg, new THREE.SphereGeometry(0.07, 6, 5), ivory, 0, -0.47, 0.04).scale.set(1, 0.7, 1.4);
+      leg.position.set(x, 0.58, 0);
+      shape(leg, new THREE.CylinderGeometry(0.042, 0.034, 0.44, 8).translate(0, -0.22, 0), ivory);
+      const boot = shape(leg, new THREE.SphereGeometry(0.085, 8, 6), bootMat, 0, -0.46, 0.05);
+      boot.scale.set(1, 0.72, 1.5);
+      shape(leg, new THREE.TorusGeometry(0.045, 0.014, 5, 10), rogueRedMat, 0, -0.38, 0).rotation.x = Math.PI / 2;
       this.rogue.add(leg);
       this.rogueLegs.push(leg);
     }
-    for (const x of [-0.3, 0.3]) {
+
+    // Swinging arms with little hands (right hand clutches a tiny stolen spark orb!)
+    for (const sx of [-1, 1]) {
       const arm = new THREE.Group();
-      arm.position.set(x, 0.92, 0);
-      shape(arm, new THREE.CylinderGeometry(0.025, 0.02, 0.3, 5).translate(0, -0.15, 0), ivory).rotation.z = x > 0 ? -0.4 : 0.4;
-      shape(arm, new THREE.SphereGeometry(0.045, 6, 5), ivory, x > 0 ? 0.11 : -0.11, -0.28, 0);
-      this.rogue.add(arm);
+      arm.position.set(sx * 0.38, 0.04, 0);
+      shape(arm, new THREE.CylinderGeometry(0.036, 0.028, 0.34, 7).translate(0, -0.17, 0), ivory).rotation.z = sx * -0.35;
+      shape(arm, new THREE.SphereGeometry(0.058, 8, 6), ivory, sx * 0.12, -0.32, 0);
+      if (sx === 1) {
+        // Tiny stolen glowing firefly spark
+        shape(arm, new THREE.SphereGeometry(0.065, 8, 8), this.glow, 0.16, -0.35, 0.08);
+      }
+      this.rogueBody.add(arm);
       this.rogueArms.push(arm);
     }
     this.rogue.position.set(7, 0, 5);
@@ -169,25 +253,49 @@ export class LanternFestival {
     const p = this.rogue.position;
     const dx = p.x - player[0], dz = p.z - player[2];
     const distance = Math.hypot(dx, dz);
-    if (snapshot.state === "playing" && distance < 5 && this.reveal === 0) {
-      p.x += (distance > 0.01 ? dx / distance : 1) * dt * 3;
-      p.z += (distance > 0.01 ? dz / distance : 0) * dt * 3;
+    if (this.reveal > 0) {
+      // Cowering & spinning sheepishly under its mini hat after Tỏa Sáng
+      p.y = 0;
+      this.rogue.rotation.y += dt * 7;
+      this.rogue.rotation.z = Math.sin(this.time * 18) * 0.14;
+      this.rogueBody.position.y = 0.82;
+      this.rogueHat.position.y = 0.34;
+      this.rogueArms[0].rotation.set(-2.2, 0, -0.35);
+      this.rogueArms[1].rotation.set(-2.2, 0, 0.35);
+      for (const leg of this.rogueLegs) leg.rotation.x = 0;
+    } else if (snapshot.state === "playing" && distance < 5) {
+      const nx = distance > 0.01 ? dx / distance : 1;
+      const nz = distance > 0.01 ? dz / distance : 0;
+      p.x += nx * dt * 3;
+      p.z += nz * dt * 3;
       if (Math.hypot(p.x, p.z) > 32) { p.x *= 0.98; p.z *= 0.98; }
-      p.y = Math.abs(Math.sin(this.time * 12)) * 0.4;
-      this.rogue.rotation.z = Math.sin(this.time * 12) * 0.22;
-      const stride = Math.sin(this.time * 12) * 0.8;
+      p.y = Math.abs(Math.sin(this.time * 13)) * 0.42;
+      this.rogue.rotation.y = Math.atan2(nx, nz);
+      this.rogue.rotation.z = Math.sin(this.time * 13) * 0.24;
+      this.rogueBody.position.y = 0.96 + Math.abs(Math.cos(this.time * 13)) * 0.06;
+      this.rogueHat.position.y = 0.44 + Math.abs(Math.sin(this.time * 13)) * 0.05;
+      const stride = Math.sin(this.time * 13) * 0.95;
       this.rogueLegs[0].rotation.x = stride;
       this.rogueLegs[1].rotation.x = -stride;
-      this.rogueArms[0].rotation.x = -stride;
-      this.rogueArms[1].rotation.x = stride;
+      this.rogueArms[0].rotation.set(-1.35 + stride * 0.5, 0, -0.45);
+      this.rogueArms[1].rotation.set(-1.35 - stride * 0.5, 0, 0.45);
+      this.rogueTassel.rotation.x = 0.45 + Math.sin(this.time * 13) * 0.25;
     } else {
+      // Idle: peeks mischievously toward Mây, gentle bounce & sway
       p.y = 0;
-      this.rogue.rotation.z = 0;
-      for (const limb of [...this.rogueLegs, ...this.rogueArms]) limb.rotation.x = 0;
+      this.rogue.rotation.y = Math.atan2(-dx, -dz);
+      this.rogue.rotation.z = Math.sin(this.time * 2.6) * 0.07;
+      this.rogueBody.position.y = 0.96 + Math.sin(this.time * 3.4) * 0.04;
+      this.rogueHat.position.y = 0.42 + Math.sin(this.time * 3.4 - 0.5) * 0.015;
+      this.rogueTassel.rotation.z = Math.sin(this.time * 3.0) * 0.18;
+      this.rogueTassel.rotation.x = 0;
+      this.rogueArms[0].rotation.set(Math.sin(this.time * 2.6) * 0.15, 0, 0);
+      this.rogueArms[1].rotation.set(-0.35 + Math.cos(this.time * 2.6) * 0.15, 0, 0);
+      for (const leg of this.rogueLegs) leg.rotation.x = 0;
     }
     this.tanTail.rotation.y = Math.sin(this.time * 4) * 0.5;
     this.tanTail.rotation.x = -0.3 + Math.sin(this.time * 2.5) * 0.12;
-    this.rogue.scale.setScalar(this.reveal > 0 ? 0.55 : 1);
+    this.rogue.scale.setScalar(this.reveal > 0 ? 0.62 : 1);
 
     const lit = snapshot.lanterns.filter(l => l.lit).length;
     if (lit >= 3 && this.whaleAge < 0 && snapshot.state === "playing") {

@@ -602,12 +602,13 @@ export function buildLanternStructure(): LanternStructure {
 }
 
 // ---------------------------------------------------------------------------
-// GIÓ LẠC — dải lụa xám xanh #8FA3B8 uốn lượn, đầu xoáy gió
+// GIÓ LẠC — dải lụa xám xanh #8FA3B8 uốn lượn, đầu linh phong có mắt & cánh gió
 // ---------------------------------------------------------------------------
 export interface DrifterRig {
   group: THREE.Group;
   head: THREE.Group;
   swirl: THREE.Mesh;
+  innerSwirl: THREE.Mesh;
   segs: THREE.Mesh[];
 }
 
@@ -618,37 +619,69 @@ export function buildDrifterRig(): DrifterRig {
     new THREE.MeshStandardMaterial({
       color: PALETTE.drifter,
       emissive: PALETTE.drifter,
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 0.6,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.86,
       side: THREE.DoubleSide,
-      roughness: 0.4
+      roughness: 0.35
     })
   );
+  const crestMat = mat("drifter.crest", () =>
+    new THREE.MeshBasicMaterial({
+      color: 0xd9f2ff,
+      transparent: true,
+      opacity: 0.78,
+      side: THREE.DoubleSide
+    })
+  );
+  const eyeMat = mat("drifter.eye", () => new THREE.MeshBasicMaterial({ color: 0xe6f8ff }));
+
   const group = new THREE.Group();
   const head = new THREE.Group();
   head.position.set(0, 1.4, 0.6);
   group.add(head);
-  add(head, geo("drifter.core", () => new THREE.OctahedronGeometry(0.26, 1)), silk);
-  const swirl = add(head, geo("drifter.swirl", () => new THREE.TorusGeometry(0.4, 0.03, 6, 22)), silk);
-  add(head, geo("drifter.tip", () => new THREE.ConeGeometry(0.16, 0.5, 6).rotateX(Math.PI / 2).translate(0, 0, 0.4)), silk);
 
-  const segGeo = geo("drifter.seg", () => new THREE.PlaneGeometry(0.6, 0.34).rotateX(-Math.PI / 2));
+  const core = add(head, geo("drifter.core", () => new THREE.OctahedronGeometry(0.28, 1)), silk);
+  core.scale.set(0.9, 0.8, 1.35);
+  add(head, geo("drifter.tip", () => new THREE.ConeGeometry(0.18, 0.56, 6).rotateX(Math.PI / 2).translate(0, 0, 0.44)), silk);
+
+  // Glowing wind-spirit eyes & swept wind-crest wings
+  for (const sx of [-1, 1]) {
+    const eye = add(head, geo("drifter.eyeGeo", () => new THREE.SphereGeometry(0.055, 6, 6)), eyeMat, sx * 0.14, 0.05, 0.24);
+    eye.scale.set(1.25, 0.65, 0.6);
+    eye.rotation.z = sx * 0.28;
+    const fin = add(
+      head,
+      geo("drifter.fin", () => new THREE.ConeGeometry(0.14, 0.68, 4).rotateX(-Math.PI / 2)),
+      crestMat,
+      sx * 0.28,
+      0.06,
+      -0.12
+    );
+    fin.rotation.y = sx * -0.45;
+    fin.rotation.z = sx * -0.35;
+  }
+
+  const swirl = add(head, geo("drifter.swirl", () => new THREE.TorusGeometry(0.42, 0.032, 6, 24)), silk);
+  const innerSwirl = add(head, geo("drifter.innerSwirl", () => new THREE.TorusGeometry(0.27, 0.02, 6, 18)), crestMat);
+
+  const segGeo = geo("drifter.seg", () => new THREE.PlaneGeometry(0.64, 0.36).rotateX(-Math.PI / 2));
   const segs: THREE.Mesh[] = [];
   for (let i = 0; i < DRIFTER_SEGMENTS; i++) {
     const seg = add(group, segGeo, silk, 0, 1.4, 0.25 - i * 0.3);
     segs.push(seg);
   }
-  return { group, head, swirl, segs };
+  return { group, head, swirl, innerSwirl, segs };
 }
 
 export function animateDrifterRig(rig: DrifterRig, t: number, reduced: boolean): void {
   const wave = reduced ? 0.4 : 1;
   rig.swirl.rotation.z = reduced ? 0 : t * 6;
-  rig.head.position.y = 1.4 + (reduced ? 0 : Math.sin(t * 5) * 0.05);
+  rig.innerSwirl.rotation.z = reduced ? 0 : -t * 8.5;
+  rig.head.position.y = 1.4 + (reduced ? 0 : Math.sin(t * 5) * 0.06);
   for (let i = 0; i < rig.segs.length; i++) {
     const seg = rig.segs[i];
-    const amp = (0.06 + i * 0.045) * wave;
+    const amp = (0.06 + i * 0.048) * wave;
     seg.position.x = Math.sin(t * 7 - i * 0.8) * amp;
     seg.position.y = 1.4 + Math.cos(t * 6 - i * 0.7) * amp * 0.6;
     seg.rotation.z = Math.cos(t * 7 - i * 0.8) * 0.35 * wave;

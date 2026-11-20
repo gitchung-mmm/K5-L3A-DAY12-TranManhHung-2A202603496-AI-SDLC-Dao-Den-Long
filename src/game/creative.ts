@@ -7,6 +7,13 @@ import { paper, shape } from "./memories.js";
 interface FogWisp {
   id: string;
   group: THREE.Group;
+  bodyPivot: THREE.Group;
+  maskPivot: THREE.Group;
+  ribbons: THREE.Mesh[][];
+  orbMotes: THREE.Mesh[];
+  outerRing: THREE.Mesh;
+  innerRing: THREE.Mesh;
+  eyeGlowMat: THREE.MeshBasicMaterial;
   angle: number;
   speedRad: number;
   radius: number;
@@ -207,59 +214,240 @@ export class CreativeWorld {
     return { npcGroup, boatGroup };
   }
 
+  private buildWispRobeGeo(): THREE.BufferGeometry {
+    const pts = [
+      new THREE.Vector2(0.58, 0.0),
+      new THREE.Vector2(0.52, 0.3),
+      new THREE.Vector2(0.4, 0.72),
+      new THREE.Vector2(0.32, 1.08),
+      new THREE.Vector2(0.42, 1.38),
+      new THREE.Vector2(0.26, 1.62),
+      new THREE.Vector2(0.01, 1.72)
+    ];
+    const g = new THREE.LatheGeometry(pts, 28);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const a = Math.atan2(z, x);
+      if (y < 0.45) {
+        const k = 1 - y / 0.45;
+        const wave = Math.sin(a * 5) * 0.5 + 0.5;
+        pos.setY(i, y - wave * 0.28 * k * k);
+        pos.setX(i, x * (1 + wave * 0.14 * k));
+        pos.setZ(i, z * (1 + wave * 0.14 * k));
+      }
+    }
+    g.computeVertexNormals();
+    return g;
+  }
+
   private spawnFogWisps(): void {
     const configs = [
       { id: "W1", angle: 0.4, speedRad: 0.32, radius: 22 },
       { id: "W2", angle: 3.5, speedRad: -0.28, radius: 22 }
     ];
 
+    const robeGeo = this.buildWispRobeGeo();
+    const segGeo = new THREE.PlaneGeometry(0.28, 0.52);
+    segGeo.rotateX(-Math.PI / 2);
+
     for (const cfg of configs) {
       const group = new THREE.Group();
+      const bodyPivot = new THREE.Group();
+      bodyPivot.position.y = 0.25;
+      group.add(bodyPivot);
 
-      const coreGeo = new THREE.IcosahedronGeometry(0.62, 1);
-      const coreMat = new THREE.MeshStandardMaterial({
+      // Flowing translucent spectral veil robe
+      const robeMat = new THREE.MeshStandardMaterial({
         color: 0x311042,
         emissive: 0x9d174d,
-        emissiveIntensity: 1.0,
+        emissiveIntensity: 0.75,
         transparent: true,
-        opacity: 0.88,
-        roughness: 0.4
+        opacity: 0.86,
+        roughness: 0.42,
+        side: THREE.DoubleSide
       });
-      const core = new THREE.Mesh(coreGeo, coreMat);
-      core.position.y = 1.25;
-      group.add(core);
+      const robe = new THREE.Mesh(robeGeo, robeMat);
+      robe.scale.set(0.95, 1.05, 0.78);
+      bodyPivot.add(robe);
 
-      const ringGeo = new THREE.TorusGeometry(0.95, 0.08, 8, 24);
-      const ringMat = new THREE.MeshBasicMaterial({
+      // Luminous ethereal outer aura mantle
+      const auraMat = new THREE.MeshBasicMaterial({
         color: 0xf472b6,
         transparent: true,
-        opacity: 0.75
+        opacity: 0.18,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.y = 1.25;
-      ring.rotation.x = Math.PI / 2.4;
-      group.add(ring);
+      const aura = new THREE.Mesh(robeGeo, auraMat);
+      aura.scale.set(1.08, 1.09, 0.92);
+      bodyPivot.add(aura);
 
-      // Porcelain mask and trailing silk replace an anonymous floating orb.
-      core.scale.set(0.7, 1, 0.4);
-      const mask = shape(group, new THREE.SphereGeometry(0.4, 12, 10), paper(0xeee0df), 0, 1.4, 0.4);
-      mask.scale.set(0.8, 1.1, 0.25);
-      for (const x of [-0.13, 0.13]) {
-        shape(group, new THREE.SphereGeometry(0.07, 6, 5), paper(0x41164e), x, 1.48, 0.5).scale.y = 0.5;
+      // Inner glowing spirit core orb
+      const heartMat = new THREE.MeshBasicMaterial({
+        color: 0xf9a8d4,
+        transparent: true,
+        opacity: 0.85
+      });
+      shape(bodyPivot, new THREE.OctahedronGeometry(0.22, 1), heartMat, 0, 0.95, 0.14);
+
+      // Ornate collar / shawl around neck
+      const collarMat = new THREE.MeshStandardMaterial({
+        color: 0x581c87,
+        emissive: 0x86198f,
+        emissiveIntensity: 0.5,
+        roughness: 0.5
+      });
+      const collar = shape(bodyPivot, new THREE.TorusGeometry(0.32, 0.065, 8, 22), collarMat, 0, 1.28, 0.04);
+      collar.rotation.x = Math.PI / 2 + 0.18;
+
+      // Sculpted porcelain spirit mask + crown
+      const maskPivot = new THREE.Group();
+      maskPivot.position.set(0, 1.56, 0.26);
+      bodyPivot.add(maskPivot);
+
+      const porcelainMat = new THREE.MeshStandardMaterial({
+        color: 0xf6ebe9,
+        emissive: 0xeee0df,
+        emissiveIntensity: 0.35,
+        roughness: 0.32
+      });
+      const hoodMat = new THREE.MeshStandardMaterial({
+        color: 0x1e0b2e,
+        emissive: 0x4c1d95,
+        emissiveIntensity: 0.35,
+        roughness: 0.65
+      });
+      const goldMat = new THREE.MeshStandardMaterial({
+        color: 0xf2c14e,
+        emissive: 0xd99b26,
+        emissiveIntensity: 0.45,
+        metalness: 0.45,
+        roughness: 0.35
+      });
+      const crimsonMat = new THREE.MeshBasicMaterial({ color: 0xc8102e });
+      const socketMat = new THREE.MeshBasicMaterial({ color: 0x2b0a3d });
+      const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xf472b6 });
+
+      // Dark hood backing behind mask
+      const hood = shape(maskPivot, new THREE.SphereGeometry(0.36, 14, 12), hoodMat, 0, 0.02, -0.14);
+      hood.scale.set(0.95, 1.15, 0.85);
+
+      // Contoured porcelain face
+      const mask = shape(maskPivot, new THREE.SphereGeometry(0.34, 16, 14), porcelainMat, 0, 0, 0.04);
+      mask.scale.set(0.84, 1.14, 0.38);
+
+      // Painted crimson forehead lotus mark & delicate smile
+      const mark = shape(maskPivot, new THREE.OctahedronGeometry(0.048, 0), crimsonMat, 0, 0.18, 0.165);
+      mark.scale.set(0.75, 1.4, 0.35);
+      const lips = shape(maskPivot, new THREE.TorusGeometry(0.042, 0.01, 5, 10, Math.PI), crimsonMat, 0, -0.14, 0.16);
+      lips.rotation.z = Math.PI;
+
+      // Almond-shaped dark eye slits with luminous spirit pupils + cheek dots
+      for (const sx of [-1, 1]) {
+        const socket = shape(maskPivot, new THREE.SphereGeometry(0.068, 8, 6), socketMat, sx * 0.115, 0.045, 0.145);
+        socket.scale.set(1.25, 0.55, 0.45);
+        socket.rotation.z = sx * 0.22;
+
+        const pupil = shape(maskPivot, new THREE.SphereGeometry(0.032, 6, 6), eyeGlowMat, sx * 0.115, 0.045, 0.175);
+        pupil.scale.set(1.1, 0.75, 0.5);
+
+        const cheek = shape(maskPivot, new THREE.SphereGeometry(0.036, 6, 5), paper(0xf472b6, 0.55), sx * 0.17, -0.055, 0.135);
+        cheek.scale.set(1.1, 0.65, 0.3);
       }
-      const silk = paper(0xb879c6, 0.45);
-      for (let i = 0; i < 6; i++) {
-        const ribbon = shape(group, new THREE.ConeGeometry(0.22, 1.4, 5), silk,
-          Math.sin(i * 1.2) * 0.5, 0.8, -i * 0.35);
-        ribbon.rotation.x = -0.8;
+
+      // Golden crescent diadem & hairpin ornaments on top of the mask
+      const crescent = shape(maskPivot, new THREE.TorusGeometry(0.18, 0.024, 8, 20, Math.PI * 1.18), goldMat, 0, 0.42, 0.02);
+      crescent.rotation.z = Math.PI * 0.91;
+      shape(maskPivot, new THREE.OctahedronGeometry(0.065, 0), eyeGlowMat, 0, 0.42, 0.03);
+      const pin = shape(maskPivot, new THREE.CylinderGeometry(0.012, 0.012, 0.84, 6), goldMat, 0, 0.24, -0.08);
+      pin.rotation.z = Math.PI / 2;
+      for (const sx of [-1, 1]) {
+        shape(maskPivot, new THREE.SphereGeometry(0.042, 8, 6), eyeGlowMat, sx * 0.42, 0.24, -0.08);
+        shape(maskPivot, new THREE.CylinderGeometry(0.008, 0.004, 0.24, 5), goldMat, sx * 0.42, 0.1, -0.08);
       }
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.12;
+
+      // 6 articulated flowing silk ribbons (4 animated segments each)
+      const silkMat = new THREE.MeshStandardMaterial({
+        color: 0xc084fc,
+        emissive: 0x9d174d,
+        emissiveIntensity: 0.55,
+        transparent: true,
+        opacity: 0.62,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const ribbons: THREE.Mesh[][] = [];
+      for (let r = 0; r < 6; r++) {
+        const segs: THREE.Mesh[] = [];
+        for (let s = 0; s < 4; s++) {
+          const seg = new THREE.Mesh(segGeo, silkMat);
+          seg.scale.set(1 - s * 0.18, 1, 1);
+          bodyPivot.add(seg);
+          segs.push(seg);
+        }
+        ribbons.push(segs);
+      }
+
+      // 4 orbiting mist petals/motes
+      const orbMotes: THREE.Mesh[] = [];
+      const moteGeo = new THREE.OctahedronGeometry(0.08, 0);
+      for (let m = 0; m < 4; m++) {
+        const mote = new THREE.Mesh(moteGeo, eyeGlowMat);
+        bodyPivot.add(mote);
+        orbMotes.push(mote);
+      }
+
+      // Double counter-rotating ground mist rings
+      const outerRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.86, 1.02, 32),
+        new THREE.MeshBasicMaterial({
+          color: 0xf472b6,
+          transparent: true,
+          opacity: 0.65,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      outerRing.rotation.x = -Math.PI / 2;
+      outerRing.position.y = 0.09;
+      group.add(outerRing);
+
+      const innerRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.52, 0.62, 6),
+        new THREE.MeshBasicMaterial({
+          color: 0xc084fc,
+          transparent: true,
+          opacity: 0.55,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      innerRing.rotation.x = -Math.PI / 2;
+      innerRing.position.y = 0.11;
+      group.add(innerRing);
+
+      // Soft eerie pink-magenta aura light
+      const auraLight = new THREE.PointLight(0xf472b6, 1.6, 8);
+      auraLight.position.set(0, 1.35, 0.2);
+      group.add(auraLight);
 
       this.scene.add(group);
       this.wisps.push({
         id: cfg.id,
         group,
+        bodyPivot,
+        maskPivot,
+        ribbons,
+        orbMotes,
+        outerRing,
+        innerRing,
+        eyeGlowMat,
         angle: cfg.angle,
         speedRad: cfg.speedRad,
         radius: cfg.radius,
@@ -308,7 +496,8 @@ export class CreativeWorld {
     const allLit = litCount >= snapshot.lanterns.length;
 
     // Update Sương Giăng wisps patrolling the lantern ring (Night 1 decorative threat)
-    for (const wisp of this.wisps) {
+    for (let wi = 0; wi < this.wisps.length; wi++) {
+      const wisp = this.wisps[wi];
       if (!isNight1 || allLit || snapshot.state !== "playing") {
         wisp.group.visible = false;
         continue;
@@ -320,19 +509,65 @@ export class CreativeWorld {
         }
         continue;
       }
+      wisp.group.visible = true;
 
       wisp.angle += wisp.speedRad * dt;
       const wx = Math.sin(wisp.angle) * wisp.radius;
       const wz = Math.cos(wisp.angle) * wisp.radius;
-      wisp.group.position.set(wx, Math.sin(this.animTime * 3) * 0.22, wz);
+      const t = this.animTime + wi * 2.1;
+      wisp.group.position.set(wx, 0, wz);
       wisp.group.rotation.y = Math.atan2(snapshot.player.pos[0] - wx, snapshot.player.pos[2] - wz);
-      const nearby = distXZ(snapshot.player.pos, [wx, 0, wz]) < 6;
-      wisp.group.scale.setScalar(nearby ? 1 + Math.sin(this.animTime * 8) * 0.08 : 1);
 
-      if (
-        this.hitCooldown <= 0 &&
-        distXZ(snapshot.player.pos, [wx, 0, wz]) <= 1.35
-      ) {
+      const distToPlayer = distXZ(snapshot.player.pos, [wx, 0, wz]);
+      const nearby = distToPlayer < 6.5;
+
+      // Floating spectral body & gentle head tilt
+      wisp.bodyPivot.position.y = 0.28 + Math.sin(t * 2.6) * 0.16;
+      wisp.bodyPivot.rotation.z = Math.sin(t * 1.8) * 0.08;
+      wisp.bodyPivot.rotation.x = nearby ? 0.14 : 0.05;
+      wisp.maskPivot.rotation.z = Math.sin(t * 2.2) * (nearby ? 0.16 : 0.07);
+      wisp.maskPivot.rotation.x = Math.cos(t * 1.9) * 0.06;
+      wisp.group.scale.setScalar(nearby ? 1.04 + Math.sin(t * 7) * 0.05 : 1);
+      wisp.eyeGlowMat.color.setHex(nearby ? 0xff4da6 : 0xf472b6);
+
+      // Undulating 6 silk ribbons streaming behind the spirit
+      for (let r = 0; r < wisp.ribbons.length; r++) {
+        const spread = (r - 2.5) * 0.24;
+        const baseY = 1.24 - Math.abs(r - 2.5) * 0.1;
+        const segs = wisp.ribbons[r];
+        for (let s = 0; s < segs.length; s++) {
+          const seg = segs[s];
+          const phase = t * (nearby ? 7.5 : 4.5) - s * 0.85 + r * 0.9;
+          const swayX = Math.sin(phase) * (0.08 + s * 0.09);
+          const swayY = Math.cos(phase * 0.8) * (0.05 + s * 0.05);
+          seg.position.set(
+            spread * (1 + s * 0.35) + swayX,
+            baseY - s * 0.18 + swayY,
+            -0.22 - s * 0.44
+          );
+          seg.rotation.z = Math.cos(phase) * 0.32;
+          seg.rotation.x = -0.35 - s * 0.08 + Math.sin(phase) * 0.14;
+        }
+      }
+
+      // Orbiting luminous spirit motes
+      for (let m = 0; m < wisp.orbMotes.length; m++) {
+        const ma = t * (nearby ? 3.2 : 1.7) + (m / wisp.orbMotes.length) * Math.PI * 2;
+        wisp.orbMotes[m].position.set(
+          Math.cos(ma) * 0.78,
+          0.92 + Math.sin(t * 3 + m * 1.5) * 0.24,
+          Math.sin(ma) * 0.78
+        );
+        wisp.orbMotes[m].rotation.y = ma * 2;
+      }
+
+      // Counter-rotating ground mist rune rings
+      wisp.outerRing.rotation.z = t * 0.7;
+      wisp.innerRing.rotation.z = -t * 1.1;
+      const ringPulse = nearby ? 1.12 + Math.sin(t * 6) * 0.08 : 1 + Math.sin(t * 2.5) * 0.04;
+      wisp.outerRing.scale.setScalar(ringPulse);
+
+      if (this.hitCooldown <= 0 && distToPlayer <= 1.35) {
         this.slowTimer = 1.6;
         this.hitCooldown = 3.0;
       }
