@@ -1,4 +1,4 @@
-# AGENTS.md — Đảo Đèn Lồng (AI SDLC Harness — Phase 2 / Contract v1.1)
+# AGENTS.md — Đảo Đèn Lồng (AI SDLC Harness — Phase 3 / Contract v1.2)
 
 ## Commands
 - Install: `npm ci`
@@ -11,16 +11,15 @@
 
 ## Architecture Rules
 1. `src/core/` MUST stay pure TypeScript with ZERO imports from `three`, DOM/browser APIs, or `node:fs`.
-2. `src/core/` MUST be 100% deterministic: never call `Math.random()` or `Date.now()`; always use `SeededRng` (`src/core/rng.ts`).
-3. `game.contract.json` (`contract_version: "1.1"`) is the single source of truth for standardized `tuning`. Keep `src/core/tuning.ts` strictly identical (enforced by unit tests).
-4. Map geometry & terrain queries (`src/core/maps.ts`) are shared by core simulation and Web 3D renderer. Angle convention on XZ: `x = r * cos(deg)`, `z = r * sin(deg)`.
+2. `src/core/` MUST be 100% deterministic: never call `Math.random()` or `Date.now()`; always use `SeededRng`.
+3. `game.contract.json` (`contract_version: "1.2"`) is the single source of truth for `tuning`. Keep `src/core/tuning.ts` strictly identical.
+4. Store lantern fuel internally as integer `1/60` units (`0..6000`) to avoid floating-point drift; round to 1 decimal place ONLY when serializing snapshots/events.
 5. Creative Web-3D additions (`src/game/creative.ts`, `festival.ts`, `memories.ts`) MUST remain strictly outside `src/core/` and NEVER mutate snapshots or alter headless output.
 
-## Test Contract v1.1 Guardrails
-- Fixed step `dt = 1 / 60`. Follow the mandatory 12-step tick order strictly.
-- Pause stops `sim_tick`, timers, spawns, and TTL while `tick` continues advancing (`state: "paused"`).
-- Score `+10` applies on **mote deposit** (not pickup); win bonus uses `Math.floor(time_left_s) * 2 + 50 * flames`.
-- Shade states MUST use exact names: `spawning`, `wander`, `chase`, `recoil`, `stunned`.
-- Full-night headless run (21,600 ticks) MUST complete in `<= 30s`.
-- Malformed `--inputs` / `--scenario` MUST exit with code `2` and print to `stderr`.
-- Never fake tests or hand-edit outputs. Do not finish or tag a phase while `npm run verify` fails.
+## Test Contract v1.2 Guardrails
+- Follow the 12-step tick order: Step 2 subtracts fuel (decay `1/60` + drain `5/60` per draining shade), and immediately after Step 2 any lantern with `fuel <= 0` turns off (`lantern_out`, `ever_lit = true`).
+- Safe zone (`6m`) ONLY applies when `lantern.lit && fuel >= 30` (exact `30` still protects; `< 30` loses protection).
+- Win condition is survival to dawn (`time_left_s <= 0`) with `flames > 0` and `lit >= ceil(0.6 * total)` (`reason: "dawn_survived"`). No early win (`all_lit` removed).
+- Shade states: `spawning`, `wander`, `chase`, `drain`, `recoil`, `stunned`. Stunned always returns to `wander`.
+- Scoring v1.2: `+5`/mote deposited/refueled, `+100` first light, `+40` relight, `+5` pulse stun (`+15` total if draining), dawn win bonus `+50 + floor(fuel)` per lit lantern + `50 * flames`.
+- Never skip broken old tests silently: update or remove with explicit justification in tests and ADR.
