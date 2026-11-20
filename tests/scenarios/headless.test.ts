@@ -526,3 +526,30 @@ test("headless CLI exits with code 2 on invalid inputs/scenario contract", () =>
   assert.equal(resScenario.status, 2);
   assert.ok(resScenario.stderr.length > 0);
 });
+
+test("v1.3 CLI: soak test runs multi-night stability with 0 crashes and --export-leaderboard outputs JSON", () => {
+  const dir = makeTmpDir();
+  const soakOut = path.join(dir, "soak-mini.json");
+  const soakEntry = path.resolve(process.cwd(), "dist/cli/soak.js");
+  const runEntry = path.resolve(process.cwd(), "dist/cli/run.js");
+
+  const soakRes = spawnSync(
+    process.execPath,
+    [soakEntry, "--seed", "7", "--nights", "3", "--out", soakOut],
+    { encoding: "utf8" }
+  );
+  assert.equal(soakRes.status, 0, soakRes.stderr);
+  const soak = JSON.parse(fs.readFileSync(soakOut, "utf8"));
+  assert.equal(soak.nights, 3);
+  assert.equal(soak.crashes, 0);
+  assert.equal(soak.results.length, 3);
+  assert.ok(soak.mem_end_mb <= 1.2 * soak.mem_start_mb);
+
+  const lbOut = path.join(dir, "lb.json");
+  const lbRes = spawnSync(process.execPath, [runEntry, "--export-leaderboard", lbOut], {
+    encoding: "utf8"
+  });
+  assert.equal(lbRes.status, 0, lbRes.stderr);
+  const lb = JSON.parse(fs.readFileSync(lbOut, "utf8"));
+  assert.ok(Array.isArray(lb.entries));
+});
