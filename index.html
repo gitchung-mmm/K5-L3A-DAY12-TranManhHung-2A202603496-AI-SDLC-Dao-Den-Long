@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đảo Đèn Lồng — Đêm 1: Đảo Bến</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0c0714;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        color: #fef3c7;
+        user-select: none;
+      }
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .hud-top {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        pointer-events: none;
+        gap: 12px;
+      }
+      .hud-card {
+        background: rgba(15, 10, 26, 0.72);
+        border: 1px solid rgba(251, 191, 36, 0.28);
+        border-radius: 12px;
+        padding: 10px 14px;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      }
+      .hud-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        font-size: 15px;
+      }
+      .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .stat-label {
+        color: #cbd5e1;
+        font-size: 13px;
+      }
+      .stat-value {
+        font-weight: 700;
+        color: #fbbf24;
+      }
+      .hud-controls-row {
+        display: flex;
+        gap: 8px;
+        pointer-events: auto;
+      }
+      .btn-small {
+        background: rgba(30, 20, 48, 0.85);
+        color: #fde68a;
+        border: 1px solid rgba(251, 191, 36, 0.35);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .btn-small:hover {
+        background: rgba(56, 36, 86, 0.92);
+      }
+      .hud-bottom {
+        position: absolute;
+        bottom: 16px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        pointer-events: none;
+      }
+      .prompt-pill {
+        background: rgba(245, 158, 11, 0.92);
+        color: #1c1026;
+        font-weight: 700;
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+      .prompt-pill.visible {
+        opacity: 1;
+      }
+      .controls-help {
+        font-size: 12px;
+        color: #e2e8f0;
+        line-height: 1.5;
+      }
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(9, 5, 16, 0.78);
+        backdrop-filter: blur(5px);
+        z-index: 10;
+      }
+      .overlay.visible {
+        display: flex;
+      }
+      .overlay-box {
+        background: #170f26;
+        border: 1px solid rgba(251, 191, 36, 0.45);
+        border-radius: 16px;
+        padding: 28px 34px;
+        max-width: 420px;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      }
+      .overlay-box h1 {
+        font-size: 26px;
+        margin-bottom: 10px;
+        color: #fbbf24;
+      }
+      .overlay-box p {
+        color: #e2e8f0;
+        margin-bottom: 18px;
+        line-height: 1.5;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #160c24;
+        border: none;
+        border-radius: 10px;
+        padding: 11px 24px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-primary:hover {
+        filter: brightness(1.08);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="hud-top">
+        <div class="hud-card hud-stats">
+          <div class="stat-item">
+            <span class="stat-label">Ngọn lửa:</span>
+            <span class="stat-value" id="hud-flames">3</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Đom đóm:</span>
+            <span class="stat-value" id="hud-carried">0 / 5</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Đèn Lồng:</span>
+            <span class="stat-value" id="hud-lanterns">0 / 5</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Thời gian:</span>
+            <span class="stat-value" id="hud-time">05:00</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Điểm:</span>
+            <span class="stat-value" id="hud-score">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Tỏa sáng:</span>
+            <span class="stat-value" id="hud-pulse">Sẵn sàng</span>
+          </div>
+        </div>
+        <div class="hud-controls-row">
+          <button class="btn-small" id="btn-sound" type="button">Âm thanh: Bật</button>
+          <button class="btn-small" id="btn-restart-top" type="button">Chơi lại</button>
+        </div>
+      </div>
+
+      <div class="hud-bottom">
+        <div class="hud-card controls-help">
+          <strong>Điều khiển:</strong> WASD / Mũi tên: Chạy · Space: Nhảy · E / F: Nạp đèn · Shift / R / Chuột phải: Tỏa sáng · Kéo chuột hoặc Q/C: Xoay góc nhìn
+        </div>
+        <div class="prompt-pill" id="hud-prompt">Nhấn [E] để nạp ánh sáng vào Đèn Lồng</div>
+      </div>
+
+      <div class="overlay" id="overlay">
+        <div class="overlay-box">
+          <h1 id="overlay-title">Đảo Đèn Lồng</h1>
+          <p id="overlay-desc"></p>
+          <button class="btn-primary" id="btn-restart" type="button">Chơi lại Đêm 1</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
