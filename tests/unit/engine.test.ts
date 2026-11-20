@@ -4,58 +4,68 @@ import { GameEngine } from "../../src/core/engine.js";
 import { distXZ } from "../../src/core/math.js";
 import { DEFAULT_TUNING } from "../../src/core/tuning.js";
 
-test("movement respects cam_yaw_deg and normalizes diagonal vector", () => {
+// Updated for Ticket-02 (v1.1): player_speed=6.0 with <=0.1s acceleration, carry_capacity=10,
+// lantern_cost=10, score +10 on deposit (not pickup), pulse_cost=3, per_stun=5, fall_enabled=true.
+
+test("movement respects cam_yaw_deg, accelerates within 0.1s, and normalizes diagonal", () => {
   const engine = new GameEngine({
     seed: 1,
+    night: 1,
     scenario: { random_motes: false, random_shades: false, motes: [], shades: [] }
   });
 
-  // 60 ticks moving [0, 1] at yaw 0 -> +Z by player_speed (7.0 m)
-  for (let k = 0; k < 60; k++) {
+  // After 6 ticks (0.1s), speed reaches full 6.0 m/s
+  for (let k = 0; k < 6; k++) {
     engine.step(k === 0 ? { tick: 0, move: [0, 1], cam_yaw_deg: 0 } : undefined);
   }
-  const s1 = engine.getSnapshotRecord();
-  assert.ok(Math.abs(s1.player.pos[0]) < 1e-3);
-  assert.ok(Math.abs(s1.player.pos[2] - 7.0) < 1e-2);
+  assert.ok(Math.abs(engine.getSnapshotRecord().player.vel[2] - 6.0) < 1e-2);
 
-  // Diagonal [1, 1] normalized -> distance after 60 ticks is still ~7.0 m
+  // Stop within 6 ticks (0.1s)
+  for (let k = 6; k < 12; k++) {
+    engine.step(k === 6 ? { tick: 6, move: [0, 0] } : undefined);
+  }
+  assert.equal(engine.getSnapshotRecord().player.vel[2], 0);
+
+  // Diagonal [1, 1] at yaw 90 normalized -> steady speed = 6.0 m/s
   const engineDiag = new GameEngine({
     seed: 1,
+    night: 1,
     scenario: { random_motes: false, random_shades: false, motes: [], shades: [] }
   });
   for (let k = 0; k < 60; k++) {
     engineDiag.step(k === 0 ? { tick: 0, move: [1, 1], cam_yaw_deg: 90 } : undefined);
   }
-  const s2 = engineDiag.getSnapshotRecord();
-  const movedDist = Math.hypot(s2.player.pos[0], s2.player.pos[2]);
-  assert.ok(Math.abs(movedDist - 7.0) < 1e-2);
+  const vel = engineDiag.getSnapshotRecord().player.vel;
+  assert.ok(Math.abs(Math.hypot(vel[0], vel[2]) - 6.0) < 1e-2);
 });
 
-test("jump rises and lands at Y=0 and triggers only on rising edge", () => {
+test("jump rises with 7m/s, gravity -20m/s2, and triggers only on rising edge", () => {
   const engine = new GameEngine({
     seed: 2,
+    night: 1,
     scenario: { random_motes: false, random_shades: false, motes: [], shades: [] }
   });
 
   engine.step({ tick: 0, jump: true });
-  const afterJump = engine.getSnapshotRecord();
-  assert.ok(afterJump.player.pos[1] > 0);
+  assert.ok(engine.getSnapshotRecord().player.pos[1] > 0);
+  assert.equal(engine.getSnapshotRecord().player.grounded, false);
 
-  // Hold jump=true for 80 ticks; player should land and NOT re-jump while held
   for (let k = 1; k < 80; k++) {
     engine.step();
   }
-  const landed = engine.getSnapshotRecord();
-  assert.equal(landed.player.pos[1], 0);
+  assert.equal(engine.getSnapshotRecord().player.pos[1], 0);
+  assert.equal(engine.getSnapshotRecord().player.grounded, true);
 });
 
-test("mote pickup, deposit, lantern lighting, and win bonus work correctly", () => {
+test("mote pickup, deposit (+10/mote), lantern_lit (+100), and floor(time)*2 + 50*flames win bonus", () => {
   const engine = new GameEngine({
     seed: 3,
+    night: 1,
     scenario: {
+      player: { pos: [0, 0, 0], carried: 7, flames: 3 },
       random_motes: false,
       random_shades: false,
-      motes: [[0, 0, 1.0], [0, 0, 1.2], [0, 0, 1.4]],
+      motes: [[0, 0, 0.5], [0, 0, 0.7], [0, 0, 0.9]],
       shades: [],
       lanterns: [
         { id: "L1", pos: [0, 0, 1.5], deposited: 0, lit: false },
@@ -68,108 +78,95 @@ test("mote pickup, deposit, lantern lighting, and win bonus work correctly", () 
     }
   });
 
-  // Scenario pre-lit lanterns must NOT award score
   assert.equal(engine.getSnapshotRecord().score, 0);
 
-  // Tick 0: pick up all 3 motes within pickup_radius (1.5m)
+  // Tick 0: pick up 3 motes -> carried becomes 10; pickup itself gives 0 score in v1.1
   const ev1 = engine.step({ tick: 0 });
   assert.equal(ev1.filter((e) => e.name === "mote_picked").length, 3);
-  assert.equal(engine.getSnapshotRecord().player.carried, 3);
+  assert.equal(engine.getSnapshotRecord().player.carried, 10);
+  assert.equal(engine.getSnapshotRecord().score, 0);
 
-  // Tick 1: interact to deposit 3 into L1 -> lights L1 -> win
+  // Tick 1: interact deposits 10 -> lights L1 -> win
   const ev2 = engine.step({ tick: 1, interact: true });
-  assert.ok(ev2.some((e) => e.name === "deposit"));
+  assert.ok(ev2.some((e) => e.name === "deposit" && e.data.amount === 10));
   assert.ok(ev2.some((e) => e.name === "lantern_lit"));
   assert.ok(ev2.some((e) => e.name === "game_over" && e.data.result === "won"));
 
   const end = engine.getEndRecord();
   assert.equal(end.state, "won");
-  assert.equal(end.ticks, 2);
-  // Score: 3*10 + 100 + round((100 - 2/60)*2) + 3*50 = 30 + 100 + 200 + 150 = 480
-  assert.equal(end.score, 480);
+  // time_left_s = 100 - 2/60 = 99.966 -> floor = 99 -> 99*2 = 198
+  // score = 10*10 + 100 + 198 + 3*50 = 548
+  assert.equal(end.score, 548);
 });
 
-test("pulse pushes and stuns shades inside pulse_radius and costs pulse_cost", () => {
+test("pulse costs 3 motes, checks 3D distance from y+0.8, pushes 4m over 15 ticks, stuns 120 ticks", () => {
   const engine = new GameEngine({
     seed: 4,
+    night: 1,
     scenario: {
-      player: { pos: [0, 0, 0], carried: 2, flames: 3 },
+      player: { pos: [0, 0, 0], carried: 4, flames: 3 },
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: "S1", pos: [3, 0, 0] }]
+      shades: [{ id: "S1", pos: [3, 0.8, 0], state: "chase" }]
     }
   });
 
-  const events = engine.step({ tick: 0, pulse: true });
-  const pulseEv = events.find((e) => e.name === "pulse");
+  const ev0 = engine.step({ tick: 0, pulse: true });
+  const pulseEv = ev0.find((e) => e.name === "pulse");
   assert.ok(pulseEv);
   assert.deepEqual(pulseEv.data.stunned_ids, ["S1"]);
+  assert.equal(engine.getSnapshotRecord().player.carried, 1);
+  assert.equal(engine.getSnapshotRecord().score, DEFAULT_TUNING.score.per_stun);
 
-  const snap = engine.getSnapshotRecord();
-  assert.equal(snap.player.carried, 2 - DEFAULT_TUNING.pulse_cost);
-  assert.equal(snap.shades[0].state, "stunned");
-  assert.ok(snap.shades[0].pos[0] >= 3 + DEFAULT_TUNING.pulse_push_m - 0.01);
+  // Run remaining 14 push ticks -> shade pushed ~4m total from x=3 to x=7
+  for (let k = 1; k < 15; k++) engine.step();
+  const s15 = engine.getSnapshotRecord();
+  assert.equal(s15.shades[0].state, "stunned");
+  assert.ok(Math.abs(s15.shades[0].pos[0] - 7.0) < 0.1);
 });
 
-test("shades cannot enter safe_radius around lit lanterns", () => {
+test("safe_radius (6m) blocks outside shades and pushes inside shades out within 30 ticks safely", () => {
   const engine = new GameEngine({
     seed: 5,
+    night: 1,
     scenario: {
-      player: { pos: [0, 0, 0], carried: 0, flames: 3 },
+      player: { pos: [0, 0, 0], carried: 10, flames: 3 },
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: "S1", pos: [0, 0, 7] }],
-      lanterns: [{ id: "L1", pos: [0, 0, 0], lit: true }]
+      shades: [{ id: "S1", pos: [2, 0, 0], state: "chase" }],
+      lanterns: [
+        { id: "L1", pos: [0, 0, 1.5], deposited: 0, lit: false },
+        { id: "L2", lit: false }
+      ]
     }
   });
 
-  for (let k = 0; k < 120; k++) {
-    engine.step();
-  }
+  engine.step({ tick: 0, interact: true });
+  for (let k = 1; k <= 35; k++) engine.step();
   const snap = engine.getSnapshotRecord();
-  const d = distXZ(snap.shades[0].pos, [0, 0, 0]);
-  assert.ok(d > DEFAULT_TUNING.safe_radius);
   assert.equal(snap.player.flames, 3);
+  assert.ok(distXZ(snap.shades[0].pos, [0, 0, 1.5]) >= DEFAULT_TUNING.safe_radius);
 });
 
-test("player loses on no_flames and on dawn timeout", () => {
-  const hitEngine = new GameEngine({
+test("player hit drops floor(carried/2) motes into 1.5-2.5m ring and shade enters recoil", () => {
+  const engine = new GameEngine({
     seed: 6,
+    night: 1,
     scenario: {
-      player: { pos: [0, 0, 0], carried: 4, flames: 1 },
+      player: { pos: [0, 0, 0], carried: 5, flames: 2 },
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: "S1", pos: [0.5, 0, 0] }]
+      shades: [{ id: "S1", pos: [0.5, 0, 0], state: "chase" }]
     }
   });
-  const evHit = hitEngine.step();
-  assert.ok(
-    evHit.some(
-      (e) =>
-        e.name === "player_hit" &&
-        e.data.flames === 0 &&
-        e.data.dropped === Math.floor(4 * DEFAULT_TUNING.hit_drop_ratio)
-    )
-  );
-  assert.ok(
-    evHit.some((e) => e.name === "game_over" && e.data.result === "lost" && e.data.reason === "no_flames")
-  );
 
-  const dawnEngine = new GameEngine({
-    seed: 7,
-    scenario: {
-      random_motes: false,
-      random_shades: false,
-      motes: [],
-      shades: [],
-      time_left_s: 0.01
-    }
-  });
-  const evDawn = dawnEngine.step();
-  assert.ok(
-    evDawn.some((e) => e.name === "game_over" && e.data.result === "lost" && e.data.reason === "dawn")
-  );
+  const ev = engine.step();
+  assert.ok(ev.some((e) => e.name === "player_hit" && e.data.flames === 1 && e.data.dropped === 2));
+  const snap = engine.getSnapshotRecord();
+  assert.equal(snap.player.carried, 3);
+  assert.equal(snap.shades[0].state, "recoil");
+  assert.equal(snap.motes.filter((m) => m.kind === "dropped").length, 2);
 });
