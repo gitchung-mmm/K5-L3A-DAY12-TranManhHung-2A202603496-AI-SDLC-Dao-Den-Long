@@ -30,11 +30,13 @@ let seed = 101;
 let engine = new GameEngine({ seed, night: 1, tuning: DEFAULT_TUNING });
 let camYawDeg = 0;
 let started = false;
-let creativeHud: CreativeHudState = { npcDialogue: null, slowed: false, speedMultiplier: 1 };
+const emptyCreativeHud = (): CreativeHudState => ({ npcDialogue: null, slowed: false,
+  speedMultiplier: 1, storyText: null, endingActive: false, cameraFocus: null, cues: [] });
+let creativeHud = emptyCreativeHud();
 
 overlayTitleEl.textContent = "Đảo Đèn Lồng — Đêm 1: Đảo Bến";
 overlayDescEl.textContent =
-  "Giúp Mây thu thập đom đóm để thắp sáng 5 Đèn Lồng Lớn và né Bóng Mực. Nhấn Shift/R hoặc chuột phải để tỏa sáng xua chúng đi.";
+  "Đêm hội của những điều bị lãng quên. Cùng Mây và Tàn gom đom đóm, thắp 5 ngọn đèn để đánh thức ký ức của đảo. Shift/R để tỏa sáng xua bóng tối.";
 btnRestart.textContent = "Bắt đầu Đêm 1";
 overlayEl.classList.add("visible");
 
@@ -79,6 +81,9 @@ function resetGame(): void {
   seed += 1;
   engine = new GameEngine({ seed, night: 1, tuning: DEFAULT_TUNING });
   creative.reset();
+  creativeHud = emptyCreativeHud();
+  keys.clear();
+  pulseMouseQueued = false;
   camYawDeg = 0;
   started = true;
   btnRestart.textContent = "Chơi lại Đêm 1";
@@ -138,6 +143,9 @@ function updateHud(): void {
   if (creativeHud.slowed && snap.state === "playing") {
     bannerEl.textContent = "Bị Sương Giăng chạm phải — tốc độ di chuyển tạm chậm!";
     bannerEl.className = "npc-banner visible warning";
+  } else if (creativeHud.storyText) {
+    bannerEl.textContent = creativeHud.storyText;
+    bannerEl.className = "npc-banner visible";
   } else if (creativeHud.npcDialogue) {
     bannerEl.textContent = creativeHud.npcDialogue;
     bannerEl.className = "npc-banner visible";
@@ -145,11 +153,11 @@ function updateHud(): void {
     bannerEl.className = "npc-banner";
   }
 
-  if (snap.state !== "playing") {
+  if (snap.state !== "playing" && !creativeHud.endingActive) {
     overlayEl.classList.add("visible");
     if (snap.state === "won") {
       overlayTitleEl.textContent = "Đảo Bến Đã Sáng Rực!";
-      overlayDescEl.textContent = `Mây đã thắp sáng cả 5 Đèn Lồng Lớn. Điểm cuối cùng: ${snap.score}.`;
+      overlayDescEl.textContent = `Những người khách đã tìm được đường về. Cảm ơn Mây và Tàn đã giữ đèn. Điểm cuối cùng: ${snap.score}.`;
     } else {
       overlayTitleEl.textContent = "Sương Đen Đã Bao Phủ...";
       overlayDescEl.textContent =
@@ -201,9 +209,10 @@ function animate(now: number): void {
 
   const snap = engine.getViewState();
   if (started) {
-    creativeHud = creative.update(snap, elapsed);
+    creativeHud = creative.update(snap, elapsed, camYawDeg);
+    for (const cue of creativeHud.cues) audio.playStory(cue);
   }
-  view.sync(snap, camYawDeg, elapsed);
+  view.sync(snap, camYawDeg, elapsed, creativeHud.cameraFocus);
   updateHud();
 }
 

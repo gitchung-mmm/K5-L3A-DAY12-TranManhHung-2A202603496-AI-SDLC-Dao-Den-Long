@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { distXZ } from "../core/math.js";
 import type { GameStateSnapshot, TuningConfig, Vec3 } from "../core/types.js";
+import { LanternFestival, type FestivalState } from "./festival.js";
+import { paper, shape } from "./memories.js";
 
 interface FogWisp {
   id: string;
@@ -11,7 +13,7 @@ interface FogWisp {
   banishedTimer: number;
 }
 
-export interface CreativeHudState {
+export interface CreativeHudState extends FestivalState {
   npcDialogue: string | null;
   slowed: boolean;
   speedMultiplier: number;
@@ -26,6 +28,7 @@ export class CreativeWorld {
   private readonly boatGroup: THREE.Group;
   private readonly npcGroup: THREE.Group;
   private readonly wisps: FogWisp[] = [];
+  private readonly festival: LanternFestival;
 
   private slowTimer = 0;
   private hitCooldown = 0;
@@ -42,6 +45,7 @@ export class CreativeWorld {
     this.scene.add(this.boatGroup);
 
     this.spawnFogWisps();
+    this.festival = new LanternFestival(scene, this.boatGroup);
   }
 
   private buildDockAndNpc(): { npcGroup: THREE.Group; boatGroup: THREE.Group } {
@@ -140,6 +144,22 @@ export class CreativeWorld {
       ring.rotation.x = Math.PI / 2.4;
       group.add(ring);
 
+      // Porcelain mask and trailing silk replace an anonymous floating orb.
+      core.scale.set(0.7, 1, 0.4);
+      const mask = shape(group, new THREE.SphereGeometry(0.4, 12, 10), paper(0xeee0df), 0, 1.4, 0.4);
+      mask.scale.set(0.8, 1.1, 0.25);
+      for (const x of [-0.13, 0.13]) {
+        shape(group, new THREE.SphereGeometry(0.07, 6, 5), paper(0x41164e), x, 1.48, 0.5).scale.y = 0.5;
+      }
+      const silk = paper(0xb879c6, 0.45);
+      for (let i = 0; i < 6; i++) {
+        const ribbon = shape(group, new THREE.ConeGeometry(0.22, 1.4, 5), silk,
+          Math.sin(i * 1.2) * 0.5, 0.8, -i * 0.35);
+        ribbon.rotation.x = -0.8;
+      }
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.12;
+
       this.scene.add(group);
       this.wisps.push({
         id: cfg.id,
@@ -153,6 +173,8 @@ export class CreativeWorld {
   }
 
   reset(): void {
+    this.festival.reset();
+    this.animTime = 0;
     this.slowTimer = 0;
     this.hitCooldown = 0;
     for (let i = 0; i < this.wisps.length; i++) {
@@ -163,6 +185,7 @@ export class CreativeWorld {
   }
 
   onPulse(playerPos: Vec3): void {
+    this.festival.onPulse(playerPos, this.tuning.pulse_radius);
     for (const wisp of this.wisps) {
       if (wisp.banishedTimer > 0) continue;
       const wispPos: Vec3 = [wisp.group.position.x, 0, wisp.group.position.z];
@@ -173,7 +196,7 @@ export class CreativeWorld {
     }
   }
 
-  update(snapshot: GameStateSnapshot, dt: number): CreativeHudState {
+  update(snapshot: GameStateSnapshot, dt: number, camYawDeg = 0): CreativeHudState {
     this.animTime += dt;
     this.boatGroup.position.y = -0.35 + Math.sin(this.animTime * 1.6) * 0.16;
     this.boatGroup.rotation.z = Math.sin(this.animTime * 1.2) * 0.04;
@@ -202,7 +225,9 @@ export class CreativeWorld {
       const wx = Math.sin(wisp.angle) * wisp.radius;
       const wz = Math.cos(wisp.angle) * wisp.radius;
       wisp.group.position.set(wx, Math.sin(this.animTime * 3) * 0.22, wz);
-      wisp.group.rotation.y += dt * 2.2;
+      wisp.group.rotation.y = Math.atan2(snapshot.player.pos[0] - wx, snapshot.player.pos[2] - wz);
+      const nearby = distXZ(snapshot.player.pos, [wx, 0, wz]) < 6;
+      wisp.group.scale.setScalar(nearby ? 1 + Math.sin(this.animTime * 8) * 0.08 : 1);
 
       if (
         this.hitCooldown <= 0 &&
@@ -218,16 +243,17 @@ export class CreativeWorld {
     if (distXZ(snapshot.player.pos, this.npcPos) <= 4.5) {
       if (litCount === 0) {
         npcDialogue =
-          "Ông Lái Đò: \"Mây ơi, hãy gom đom đóm thắp 5 Đèn Lồng Lớn. Cẩn thận cả Bóng Mực lẫn Sương Giăng tuần tra quanh đèn!\"";
+          "Ông Lái Đò: \"Đèn tắt lâu quá, đường về cũng quên mất lối. Gom đom đóm thắp đèn giúp ông nhé.\"";
       } else if (litCount < snapshot.lanterns.length) {
         npcDialogue = `Ông Lái Đò: \"Tốt lắm, đã sáng ${litCount}/${snapshot.lanterns.length} đèn rồi! Bấm Tỏa sáng (Shift/R) sẽ xua cả Bóng Mực và Sương Giăng.\"`;
       } else {
         npcDialogue =
-          "Ông Lái Đò: \"Đảo Bến đã bình yên trở lại rồi, Mây giỏi lắm!\"";
+          "Ông Lái Đò: \"Đủ người rồi. Cảm ơn con đã giữ đèn.\"";
       }
     }
 
     return {
+      ...this.festival.update(snapshot, dt, camYawDeg),
       npcDialogue,
       slowed: this.slowTimer > 0,
       speedMultiplier: this.slowTimer > 0 ? 0.55 : 1.0

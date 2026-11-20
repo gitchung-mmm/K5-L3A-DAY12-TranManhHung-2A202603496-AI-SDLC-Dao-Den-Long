@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { ISLAND_RADIUS } from "../core/tuning.js";
-import type { GameStateSnapshot, TuningConfig } from "../core/types.js";
+import type { GameStateSnapshot, TuningConfig, Vec3 } from "../core/types.js";
 
 interface LanternVisual {
   group: THREE.Group;
@@ -48,6 +48,9 @@ export class IslandSceneView {
   });
 
   private animTime = 0;
+  private readonly moteVariants = [this.moteMat,
+    new THREE.MeshStandardMaterial({ color: 0xb8efad, emissive: 0x70c97a, emissiveIntensity: 2 }),
+    new THREE.MeshStandardMaterial({ color: 0xe2efff, emissive: 0xb4d3ff, emissiveIntensity: 2 })];
 
   constructor(container: HTMLElement, private readonly tuning: TuningConfig) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -331,7 +334,7 @@ export class IslandSceneView {
     });
   }
 
-  sync(snapshot: GameStateSnapshot, camYawDeg: number, dt: number): void {
+  sync(snapshot: GameStateSnapshot, camYawDeg: number, dt: number, cameraFocus: Vec3 | null = null): void {
     this.animTime += dt;
 
     // 1. Update player position & facing
@@ -382,7 +385,9 @@ export class IslandSceneView {
       activeMoteIds.add(mote.id);
       let mesh = this.moteMeshes.get(mote.id);
       if (!mesh) {
-        mesh = new THREE.Mesh(this.moteGeom, this.moteMat);
+        const variant = Array.from(mote.id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3;
+        mesh = new THREE.Mesh(this.moteGeom, this.moteVariants[variant]);
+        mesh.scale.set(variant === 1 ? 0.65 : 0.85, variant === 1 ? 1.3 : 0.85, 0.65);
         this.scene.add(mesh);
         this.moteMeshes.set(mote.id, mesh);
       }
@@ -450,15 +455,16 @@ export class IslandSceneView {
     const yawRad = (camYawDeg * Math.PI) / 180;
     const camDist = 11.5;
     const camHeight = 6.8;
-    const targetCamX = snapshot.player.pos[0] - Math.sin(yawRad) * camDist;
-    const targetCamZ = snapshot.player.pos[2] - Math.cos(yawRad) * camDist;
-    const targetCamY = snapshot.player.pos[1] + camHeight;
+    const focus = cameraFocus ?? snapshot.player.pos;
+    const targetCamX = cameraFocus ? focus[0] + 9 : focus[0] - Math.sin(yawRad) * camDist;
+    const targetCamZ = cameraFocus ? focus[2] + 12 : focus[2] - Math.cos(yawRad) * camDist;
+    const targetCamY = focus[1] + camHeight;
 
     this.camera.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.16);
     this.camera.lookAt(
-      snapshot.player.pos[0],
-      snapshot.player.pos[1] + 1.3,
-      snapshot.player.pos[2]
+      focus[0],
+      focus[1] + 1.3,
+      focus[2]
     );
 
     this.renderer.render(this.scene, this.camera);

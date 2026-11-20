@@ -3,6 +3,7 @@
  * Used strictly by the Web 3D presentation layer (zero impact on core simulation).
  */
 export class ProceduralAudio {
+  private pickupNote = 0;
   private ctx: AudioContext | null = null;
   private enabled = true;
 
@@ -54,7 +55,15 @@ export class ProceduralAudio {
   }
 
   playPickup(): void {
-    this.tone(660, 990, 0.14, "sine", 0.07);
+    const notes = [523.25, 587.33, 659.25, 783.99, 880];
+    const note = notes[this.pickupNote++ % notes.length];
+    this.tone(note, note * 1.5, 0.18, "sine", 0.06);
+  }
+
+  playStory(cue: "memory" | "whale" | "farewell" | "reveal"): void {
+    const base = { memory: 523.25, whale: 130.81, farewell: 261.63, reveal: 880 }[cue];
+    this.tone(base, base * 1.5, cue === "whale" ? 2.8 : 1.4, "sine", 0.06);
+    this.tone(base * 2, base * 2, 1.8, "triangle", 0.025);
   }
 
   playDeposit(): void {

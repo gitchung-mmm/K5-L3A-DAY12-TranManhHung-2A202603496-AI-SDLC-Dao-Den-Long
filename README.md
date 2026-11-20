@@ -61,6 +61,22 @@ Ngoài phần lõi của PRD-0, bản Phase 1 bổ sung các chi tiết gọn nh
 
 ## Tài liệu & Bằng chứng SDLC
 
+### Bản sáng tạo — Đêm hội của những điều bị lãng quên
+
+`src/game/creative.ts` điều phối hai module mới `festival.ts` và `memories.ts`:
+
+- **Tàn:** linh vật giấy với hai tai lệch, bay theo Mây, thu nhỏ khi Bóng Mực ở gần và xoay mừng khi thắp đèn.
+- **Năm ký ức:** thuyền giấy, trẻ rước đèn, bàn trà, vườn hoa và sân hội hiện dần ở phía ngoài từng đèn được thắp.
+- **Sương Giăng:** thêm mặt nạ sứ, đuôi lụa và vòng báo hiệu dưới đất; rung nhẹ khi Mây đến gần.
+- **Đèn Lạc:** chiếc đèn xanh có chân bỏ chạy khi đến gần; Tỏa sáng làm nó thu nhỏ và hiện lời thoại, không gây sát thương hoặc thay đổi điểm.
+- **Cá Voi Mây:** bay ngang phía trước camera trong 12 giây sau khi thắp đèn thứ ba, có đèn trên lưng và bóng dưới đất. Người chơi vẫn điều khiển bình thường.
+- **Chuyến đò cuối:** khi thắng, camera theo thuyền và những hành khách mờ trong khoảng 11 giây trước khi hiện bảng điểm. Nút Chơi lại vẫn dùng được.
+- **Đom đóm:** ba bảng màu và hình dáng; âm nhặt chạy qua năm nốt nhạc. Các sự kiện ký ức có âm thanh tổng hợp riêng, dùng chung nút Bật/Tắt.
+
+Đây là bản hình khối đầu tiên. Các chi tiết nâng cao trong ý tưởng như Tàn đậu trên nón, dấu chân Đèn Lạc, hoa bung khi xua sương, hơi trà chuyển động và chuỗi đèn nối toàn đảo chưa được triển khai. Không thay đổi `src/core/` hoặc `game.contract.json`.
+
+Kiểm tra bản sáng tạo: [docs/proof/phase-2.md](docs/proof/phase-2.md).
+
 - Khai báo contract: [game.contract.json](game.contract.json)
 - Giả định & tiêu chí nghiệm thu: [docs/notes/spec-assumptions.md](docs/notes/spec-assumptions.md)
 - Nhật ký dùng AI & token: [docs/notes/ai-log.md](docs/notes/ai-log.md)
