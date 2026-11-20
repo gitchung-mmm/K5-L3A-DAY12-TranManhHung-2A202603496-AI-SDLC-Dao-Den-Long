@@ -3,6 +3,7 @@ import { distXZ } from "./core/math.js";
 import { DEFAULT_TUNING, DT } from "./core/tuning.js";
 import type { Vec2 } from "./core/types.js";
 import { ProceduralAudio } from "./game/audio.js";
+import { CreativeWorld, type CreativeHudState } from "./game/creative.js";
 import { IslandSceneView } from "./game/scene.js";
 
 const appEl = document.getElementById("app")!;
@@ -13,6 +14,7 @@ const timeEl = document.getElementById("hud-time")!;
 const scoreEl = document.getElementById("hud-score")!;
 const pulseEl = document.getElementById("hud-pulse")!;
 const promptEl = document.getElementById("hud-prompt")!;
+const bannerEl = document.getElementById("hud-banner")!;
 const overlayEl = document.getElementById("overlay")!;
 const overlayTitleEl = document.getElementById("overlay-title")!;
 const overlayDescEl = document.getElementById("overlay-desc")!;
@@ -21,12 +23,14 @@ const btnRestart = document.getElementById("btn-restart") as HTMLButtonElement;
 const btnRestartTop = document.getElementById("btn-restart-top") as HTMLButtonElement;
 
 const view = new IslandSceneView(appEl, DEFAULT_TUNING);
+const creative = new CreativeWorld(view.scene, DEFAULT_TUNING);
 const audio = new ProceduralAudio();
 
 let seed = 101;
 let engine = new GameEngine({ seed, night: 1, tuning: DEFAULT_TUNING });
 let camYawDeg = 0;
 let started = false;
+let creativeHud: CreativeHudState = { npcDialogue: null, slowed: false, speedMultiplier: 1 };
 
 overlayTitleEl.textContent = "Đảo Đèn Lồng — Đêm 1: Đảo Bến";
 overlayDescEl.textContent =
@@ -74,6 +78,7 @@ function resetGame(): void {
   }
   seed += 1;
   engine = new GameEngine({ seed, night: 1, tuning: DEFAULT_TUNING });
+  creative.reset();
   camYawDeg = 0;
   started = true;
   btnRestart.textContent = "Chơi lại Đêm 1";
@@ -94,7 +99,8 @@ function readMoveInput(): Vec2 {
   if (keys.has("KeyS") || keys.has("ArrowDown")) z -= 1;
   if (keys.has("KeyA") || keys.has("ArrowLeft")) x += 1;
   if (keys.has("KeyD") || keys.has("ArrowRight")) x -= 1;
-  return [x, z];
+  const mult = creativeHud.speedMultiplier;
+  return [x * mult, z * mult];
 }
 
 function formatTime(seconds: number): string {
@@ -127,6 +133,16 @@ function updateHud(): void {
     promptEl.classList.add("visible");
   } else {
     promptEl.classList.remove("visible");
+  }
+
+  if (creativeHud.slowed && snap.state === "playing") {
+    bannerEl.textContent = "Bị Sương Giăng chạm phải — tốc độ di chuyển tạm chậm!";
+    bannerEl.className = "npc-banner visible warning";
+  } else if (creativeHud.npcDialogue) {
+    bannerEl.textContent = creativeHud.npcDialogue;
+    bannerEl.className = "npc-banner visible";
+  } else {
+    bannerEl.className = "npc-banner";
   }
 
   if (snap.state !== "playing") {
@@ -174,7 +190,9 @@ function animate(now: number): void {
         else if (ev.name === "lantern_lit") audio.playLanternLit();
         else if (ev.name === "pulse") {
           audio.playPulse();
-          view.spawnPulseWave(engine.getViewState().player.pos);
+          const pPos = engine.getViewState().player.pos;
+          view.spawnPulseWave(pPos);
+          creative.onPulse(pPos);
         } else if (ev.name === "player_hit") audio.playHit();
       }
     }
@@ -182,6 +200,9 @@ function animate(now: number): void {
   }
 
   const snap = engine.getViewState();
+  if (started) {
+    creativeHud = creative.update(snap, elapsed);
+  }
   view.sync(snap, camYawDeg, elapsed);
   updateHud();
 }

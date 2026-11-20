@@ -109,6 +109,29 @@
       .prompt-pill.visible {
         opacity: 1;
       }
+      .npc-banner {
+        position: absolute;
+        bottom: 74px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(23, 15, 38, 0.9);
+        border: 1px solid rgba(251, 191, 36, 0.45);
+        color: #fef3c7;
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 14px;
+        max-width: 560px;
+        text-align: center;
+        display: none;
+        pointer-events: none;
+      }
+      .npc-banner.visible {
+        display: block;
+      }
+      .npc-banner.warning {
+        border-color: rgba(244, 114, 182, 0.8);
+        color: #fbcfe8;
+      }
       .controls-help {
         font-size: 12px;
         color: #e2e8f0;
@@ -195,6 +218,8 @@
           <button class="btn-small" id="btn-restart-top" type="button">Chơi lại</button>
         </div>
       </div>
+
+      <div class="npc-banner" id="hud-banner"></div>
 
       <div class="hud-bottom">
         <div class="hud-card controls-help">

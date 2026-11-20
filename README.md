@@ -53,9 +53,11 @@ Tùy chọn thêm: `--scenario <file.json>` và `--inputs <file.json>`. Nếu fi
 ## Sáng tạo của tôi
 
 Ngoài phần lõi của PRD-0, bản Phase 1 bổ sung các chi tiết gọn nhẹ chỉ chạy ở lớp hiển thị Web 3D (`src/game/`) để **không làm thay đổi bất kỳ đầu ra headless nào**:
-1. **Ánh sáng đảo chuyển sắc dần:** Khi số Đèn Lồng Lớn được thắp tăng từ 0/5 đến 5/5, sương đen mỏng dần và ánh sáng toàn đảo ấm dần lên.
-2. **Hiệu ứng sóng tỏa sáng & vòng an toàn:** Hiển thị vòng sáng vàng cam lan tỏa trên mặt đất khi dùng `pulse` và vòng ranh giới an toàn quanh các đèn đã thắp.
-3. **Âm thanh tổng hợp procedural (Web Audio API):** Tự tạo âm thanh nhẹ khi nhặt đom đóm, nạp đèn, thắp đèn, tỏa sáng và va chạm (không dùng file âm thanh ngoài, có nút Bật/Tắt trên HUD).
+1. **Nhân vật phụ — Ông Lái Đò & Bến thuyền (`src/game/creative.ts`):** Ở rìa nam của Đảo Bến có cầu cảng gỗ, chiếc thuyền nhỏ dập dềnh và Ông Lái Đò cầm đèn dầu; khi Mây đến gần sẽ hiện lời thoại hướng dẫn theo tiến độ thắp đèn.
+2. **Kẻ thù mới — Sương Giăng (`src/game/creative.ts`):** 2 cụm sương tím hồng tuần tra quanh vòng Đèn Lồng; chạm phải sẽ làm Mây chậm lại tạm thời (`1.6s`) và có thể bị xua tan tạm thời (`4s`) bằng kỹ năng Tỏa sáng (`pulse`).
+3. **Ánh sáng đảo chuyển sắc dần:** Khi số Đèn Lồng Lớn được thắp tăng từ 0/5 đến 5/5, sương đen mỏng dần và ánh sáng toàn đảo ấm dần lên.
+4. **Hiệu ứng sóng tỏa sáng & vòng an toàn:** Hiển thị vòng sáng vàng cam lan tỏa trên mặt đất khi dùng `pulse` và vòng ranh giới an toàn quanh các đèn đã thắp.
+5. **Âm thanh tổng hợp procedural (Web Audio API):** Tự tạo âm thanh nhẹ khi nhặt đom đóm, nạp đèn, thắp đèn, tỏa sáng và va chạm (không dùng file âm thanh ngoài, có nút Bật/Tắt trên HUD).
 
 ## Tài liệu & Bằng chứng SDLC
 
