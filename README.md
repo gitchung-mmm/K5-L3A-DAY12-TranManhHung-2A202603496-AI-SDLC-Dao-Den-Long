@@ -29,13 +29,14 @@ Sau lệnh thứ 3, mở trình duyệt tới `http://127.0.0.1:4173`.
 | Giữ Chuột trái + kéo, hoặc `Q` / `C` | Xoay camera quanh Mây (độ nhạy chỉnh trong Cài đặt, lưu `localStorage`) |
 | `Esc` hoặc `P` | Tạm dừng game (dừng hoàn toàn logic, mở menu Tiếp tục / Chơi lại / Cài đặt / Về menu) |
 
-## Cách tính điểm (chuẩn hóa Contract v1.1)
+## Cách tính điểm (chuẩn hóa Contract v1.2 — "Đèn cạn dầu")
 
-- Nạp 1 đom đóm vào Đèn Lồng Lớn: **+10 điểm**
-- Thắp sáng 1 Đèn Lồng Lớn (đủ 10 đom đóm): **+100 điểm**
-- Tỏa Sáng trúng 1 Bóng Mực: **+5 điểm** (mỗi con mỗi lần, kể cả đang choáng)
-- Thưởng khi thắng mỗi Đêm: **+`floor(giây còn lại) × 2` + `50 × Ngọn Lửa còn lại`**
-- Tổng điểm hành trình là tổng điểm của các Đêm đã thắng (hiện tại màn hình Bình Minh sau Đêm 3).
+- Nạp 1 đom đóm vào đèn (thắp mới, thắp lại hoặc châm dầu): **+5 điểm**
+- Thắp đèn lần đầu (`10` đom đóm): **+100 điểm** · Thắp lại đèn đã tắt (`5` đom đóm): **+40 điểm**
+- Tỏa Sáng trúng 1 Bóng Mực: **+5 điểm** (tổng **+15 điểm** nếu Bóng Mực đang hút dầu `drain`)
+- Thưởng Bình Minh (chỉ khi sống sót tới hết giờ với số đèn sáng `>= ceil(0.6 × tổng đèn)` — Đêm 1: `3/5`, Đêm 2: `4/6`, Đêm 3: `5/7`): **+`50 + floor(fuel)` mỗi đèn đang sáng** + **`50 × Ngọn Lửa còn lại`** (bỏ thưởng thời gian).
+- Sức chứa tăng dần trong Đêm: `10 + 2 × số lần thắp thành công` (tối đa `20`).
+- Hỗ trợ **Chế độ mù màu ("Bảng màu dễ phân biệt")** trong Cài đặt (lưu `localStorage`).
 
 ## Chạy kiểm thử & Chế độ Headless (Test Contract v1.1)
 
@@ -66,8 +67,8 @@ Mọi yếu tố sáng tạo chạy hoàn toàn ở lớp hiển thị Web 3D (`
 
 ## Tài liệu & Bằng chứng SDLC
 
-- Khai báo contract v1.1: [game.contract.json](game.contract.json)
-- Spec & Acceptance Criteria: [docs/notes/spec-assumptions.md](docs/notes/spec-assumptions.md), [docs/notes/spec-phase2.md](docs/notes/spec-phase2.md)
+- Khai báo contract v1.2: [game.contract.json](game.contract.json)
+- Spec, ADR & Acceptance Criteria: [docs/notes/spec-assumptions.md](docs/notes/spec-assumptions.md), [docs/notes/spec-phase2.md](docs/notes/spec-phase2.md), [docs/notes/adr-001-lantern-fuel.md](docs/notes/adr-001-lantern-fuel.md)
 - Nhật ký dùng AI & token: [docs/notes/ai-log.md](docs/notes/ai-log.md)
-- Bằng chứng từng phase: [docs/proof/phase-1.md](docs/proof/phase-1.md), [docs/proof/phase-2.md](docs/proof/phase-2.md)
+- Bằng chứng từng phase: [docs/proof/phase-1.md](docs/proof/phase-1.md), [docs/proof/phase-2.md](docs/proof/phase-2.md), [docs/proof/phase-3.md](docs/proof/phase-3.md)
 - Harness AI: [AGENTS.md](AGENTS.md), [.agents/skills/verify-phase/SKILL.md](.agents/skills/verify-phase/SKILL.md), [.github/workflows/ci.yml](.github/workflows/ci.yml)

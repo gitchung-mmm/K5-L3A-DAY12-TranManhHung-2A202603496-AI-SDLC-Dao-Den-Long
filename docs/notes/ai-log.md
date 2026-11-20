@@ -20,3 +20,12 @@
   3. **Benchmark `21.600` ticks:** Lần đầu benchmark Đêm 3 dừng ở tick `11.134` do người chơi đứng yên bị Bóng Mực đánh thua → bổ sung scenario `random_shades: false` trong `scripts/verify.mjs` để chạy trọn vẹn đủ `21.600` ticks thật sự (`0.121s <= 30s`).
 - **Cập nhật Harness:** Nâng cấp `AGENTS.md` (thêm quy tắc 12 bước/tick, trạng thái Bóng Mực chuẩn, điểm khi nạp đèn) và skill `.agents/skills/verify-phase/SKILL.md` (bổ sung check 3 Đêm & benchmark `21.600` ticks).
 - **Ước tính token Phase 2:** ~75k tokens.
+
+---
+
+## Phase 3 (TICKET-03 — "Đèn cạn dầu" / Contract v1.2, 30 phút)
+- **Chiến lược & Tiết kiệm Token:**
+  - Viết ngay [adr-001-lantern-fuel.md](adr-001-lantern-fuel.md) và cập nhật `AGENTS.md` + `game.contract.json` (`v1.2`) trước khi sửa `src/core/`, dùng đơn vị nguyên `1/60` cho dầu (`0..6000`) ngay từ đầu để tránh bug sai số số thực.
+  - Sửa tập trung vào `src/core/` và chạy `npm run verify` (21/21 tests pass ngay lần đầu) trước khi chỉnh lớp Web 3D (`scene.ts`, `index.html`, `main.ts`) để kịp tiến độ 30 phút.
+- **Xử lý thay đổi phá vỡ tương thích:** Cập nhật rõ lý do các unit test cũ (`all_lit` → `dawn_survived`, điểm `+5`/mote, `+15` khi pulse Bóng Mực đang `drain`, hết choáng về `wander`), không tắt test âm thầm.
+- **Ước tính token Phase 3:** ~40k tokens.

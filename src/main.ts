@@ -12,6 +12,7 @@ const SETTINGS_KEY = "dao-den-long-settings-v1";
 interface SavedSettings {
   volume: number;
   mouseSensitivity: number;
+  colorblind: boolean;
 }
 
 function loadSettings(): SavedSettings {
@@ -24,13 +25,14 @@ function loadSettings(): SavedSettings {
         mouseSensitivity:
           typeof parsed.mouseSensitivity === "number"
             ? Math.max(0.1, Math.min(1.0, parsed.mouseSensitivity))
-            : 0.35
+            : 0.35,
+        colorblind: Boolean(parsed.colorblind)
       };
     }
   } catch {
     // ignore storage errors
   }
-  return { volume: 0.7, mouseSensitivity: 0.35 };
+  return { volume: 0.7, mouseSensitivity: 0.35, colorblind: false };
 }
 
 function saveSettings(s: SavedSettings): void {
@@ -51,6 +53,7 @@ const windEl = document.getElementById("hud-wind")!;
 const lanternsEl = document.getElementById("hud-lanterns")!;
 const scoreEl = document.getElementById("hud-score")!;
 const promptEl = document.getElementById("hud-prompt")!;
+const capacityEl = document.getElementById("hud-capacity")!;
 const bannerEl = document.getElementById("hud-banner")!;
 const moteSlotsEl = document.getElementById("hud-mote-slots")!;
 const dashBadgeEl = document.getElementById("badge-dash")!;
@@ -75,10 +78,11 @@ const optVolume = document.getElementById("opt-volume") as HTMLInputElement;
 const optVolumeVal = document.getElementById("opt-volume-val")!;
 const optSens = document.getElementById("opt-sens") as HTMLInputElement;
 const optSensVal = document.getElementById("opt-sens-val")!;
+const optColorblind = document.getElementById("opt-colorblind") as HTMLInputElement;
 
-// Build 10 mote slots
+// Build dynamic mote slots up to capacity_max (20)
 const slotEls: HTMLDivElement[] = [];
-for (let i = 0; i < DEFAULT_TUNING.carry_capacity; i++) {
+for (let i = 0; i < DEFAULT_TUNING.capacity_max; i++) {
   const slot = document.createElement("div");
   slot.className = "mote-slot";
   moteSlotsEl.appendChild(slot);
@@ -91,10 +95,17 @@ const creative = new CreativeWorld(view.scene, DEFAULT_TUNING);
 const audio = new ProceduralAudio();
 audio.setVolume(settings.volume);
 
+function applyColorblind(enabled: boolean): void {
+  document.body.classList.toggle("colorblind", enabled);
+  view.setColorblind(enabled);
+}
+applyColorblind(settings.colorblind);
+
 optVolume.value = String(Math.round(settings.volume * 100));
 optVolumeVal.textContent = `${optVolume.value}%`;
 optSens.value = String(Math.round(settings.mouseSensitivity * 100));
 optSensVal.textContent = settings.mouseSensitivity.toFixed(2);
+optColorblind.checked = settings.colorblind;
 
 type ScreenMode = "menu" | "intro" | "playing" | "paused" | "result";
 let screenMode: ScreenMode = "menu";
@@ -234,6 +245,11 @@ optSens.addEventListener("input", () => {
   optSensVal.textContent = s.toFixed(2);
   saveSettings(settings);
 });
+optColorblind.addEventListener("change", () => {
+  settings.colorblind = optColorblind.checked;
+  applyColorblind(settings.colorblind);
+  saveSettings(settings);
+});
 
 document.getElementById("btn-result-menu")!.addEventListener("click", openMenu);
 btnResultPrimary.addEventListener("click", () => {
@@ -340,9 +356,10 @@ function updateOffscreenArrow(snap: ReturnType<GameEngine["getViewState"]>): voi
 function updateHud(): void {
   const snap = engine.getViewState();
   const litCount = snap.lanterns.filter((l) => l.lit).length;
+  const reqLit = Math.ceil(DEFAULT_TUNING.win_ratio * snap.lanterns.length);
 
   flamesEl.textContent = snap.player.flames > 0 ? "🔥".repeat(snap.player.flames) : "0";
-  lanternsEl.textContent = `${litCount} / ${snap.lanterns.length}`;
+  lanternsEl.textContent = `${litCount}/${snap.lanterns.length} (cần ≥${reqLit})`;
   scoreEl.textContent = `${snap.score}`;
 
   timeEl.textContent = formatTime(snap.timeLeftS);
@@ -367,8 +384,10 @@ function updateHud(): void {
     windEl.classList.remove("visible");
   }
 
-  // 10-slot mote bar
+  // Dynamic mote bar (10..20 slots) + carried / capacity text
+  capacityEl.textContent = `Đom đóm: ${snap.player.carried} / ${snap.player.capacity}`;
   for (let i = 0; i < slotEls.length; i++) {
+    slotEls[i].style.display = i < snap.player.capacity ? "block" : "none";
     slotEls[i].classList.toggle("filled", i < snap.player.carried);
   }
 
@@ -395,16 +414,26 @@ function updateHud(): void {
     pulseBadgeEl.classList.add("cooldown");
   }
 
-  // Nearby unlit lantern prompt: "E — Nạp ánh sáng (x/10)"
+  // Nearby interactable lantern prompt (unlit OR lit with fuel < 100)
   let nearLantern = null;
   for (const l of snap.lanterns) {
-    if (!l.lit && distXZ(snap.player.pos, l.pos) <= DEFAULT_TUNING.interact_radius) {
+    if (
+      distXZ(snap.player.pos, l.pos) <= DEFAULT_TUNING.interact_radius &&
+      (!l.lit || l.fuel < DEFAULT_TUNING.fuel_max)
+    ) {
       nearLantern = l;
       break;
     }
   }
   if (nearLantern && snap.state === "playing") {
-    promptEl.textContent = `E — Nạp ánh sáng (${nearLantern.deposited}/${DEFAULT_TUNING.lantern_cost})`;
+    if (!nearLantern.lit) {
+      const req = nearLantern.everLit ? DEFAULT_TUNING.relight_cost : DEFAULT_TUNING.lantern_cost;
+      promptEl.textContent = nearLantern.everLit
+        ? `E — Thắp lại (${nearLantern.deposited}/${req})`
+        : `E — Nạp ánh sáng (${nearLantern.deposited}/${req})`;
+    } else {
+      promptEl.textContent = `E — Châm dầu (${Math.round(nearLantern.fuel)}%)`;
+    }
     promptEl.classList.add("visible");
   } else {
     promptEl.classList.remove("visible");
@@ -412,7 +441,9 @@ function updateHud(): void {
 
   // Story / NPC / Slow banner
   if (creativeHud.slowed && snap.state === "playing") {
-    bannerEl.textContent = "Bị Sương Giăng chạm phải — tốc độ di chuyển tạm chậm!";
+    bannerEl.textContent = settings.colorblind
+      ? "⚠ Bị Sương Giăng chạm phải — tốc độ di chuyển tạm chậm!"
+      : "Bị Sương Giăng chạm phải — tốc độ di chuyển tạm chậm!";
     bannerEl.className = "npc-banner visible warning";
   } else if (creativeHud.npcDialogue && screenMode === "playing") {
     bannerEl.textContent = creativeHud.npcDialogue;
@@ -521,7 +552,7 @@ function animate(now: number): void {
           showOnlyModal(null);
         } else if (ev.name === "mote_picked" || ev.name === "charm_picked") {
           audio.playPickup();
-        } else if (ev.name === "deposit") {
+        } else if (ev.name === "deposit" || ev.name === "refuel") {
           audio.playDeposit();
         } else if (ev.name === "lantern_lit") {
           audio.playLanternLit();

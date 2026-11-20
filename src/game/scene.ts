@@ -28,6 +28,10 @@ interface LanternVisual {
   group: THREE.Group;
   orbMesh: THREE.Mesh;
   orbMat: THREE.MeshStandardMaterial;
+  tearGroup: THREE.Group;
+  fuelBarGroup: THREE.Group;
+  fuelBarFill: THREE.Mesh;
+  fuelBarMat: THREE.MeshBasicMaterial;
   light: THREE.PointLight;
   safeRing: THREE.Mesh;
   safeRingMat: THREE.MeshBasicMaterial;
@@ -81,6 +85,11 @@ export class IslandSceneView {
 
   private currentNight: NightNumber = 1;
   private animTime = 0;
+  private colorblind = false;
+
+  setColorblind(enabled: boolean): void {
+    this.colorblind = enabled;
+  }
 
   constructor(container: HTMLElement, private readonly tuning: TuningConfig) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -423,6 +432,35 @@ export class IslandSceneView {
     orbMesh.position.y = 3.0;
     group.add(orbMesh);
 
+    // Non-color distinction for unlit lantern: paper tear/crack marks (visible when unlit)
+    const tearGroup = new THREE.Group();
+    const tearMat = new THREE.MeshBasicMaterial({ color: 0x120a1a });
+    const tear1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.58, 0.62), tearMat);
+    tear1.position.set(0.18, 3.0, 0);
+    tear1.rotation.z = 0.35;
+    const tear2 = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.1, 0.12), tearMat);
+    tear2.position.set(0, 2.92, 0.22);
+    tear2.rotation.z = -0.25;
+    tearGroup.add(tear1, tear2);
+    group.add(tearGroup);
+
+    // Fuel bar floating above lit lantern
+    const fuelBarGroup = new THREE.Group();
+    fuelBarGroup.position.y = 4.05;
+    const fuelBg = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.6, 0.22),
+      new THREE.MeshBasicMaterial({ color: 0x0e1430, side: THREE.DoubleSide })
+    );
+    const fuelBarMat = new THREE.MeshBasicMaterial({
+      color: PALETTE.lanternLit,
+      side: THREE.DoubleSide
+    });
+    const fuelBarFill = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.14), fuelBarMat);
+    fuelBarFill.position.z = 0.02;
+    fuelBarGroup.add(fuelBg, fuelBarFill);
+    fuelBarGroup.visible = false;
+    group.add(fuelBarGroup);
+
     const light = new THREE.PointLight(PALETTE.lanternLit, 0, 18);
     light.position.y = 3.1;
     group.add(light);
@@ -442,7 +480,18 @@ export class IslandSceneView {
     group.add(safeRing);
 
     this.scene.add(group);
-    const visual: LanternVisual = { group, orbMesh, orbMat, light, safeRing, safeRingMat };
+    const visual: LanternVisual = {
+      group,
+      orbMesh,
+      orbMat,
+      tearGroup,
+      fuelBarGroup,
+      fuelBarFill,
+      fuelBarMat,
+      light,
+      safeRing,
+      safeRingMat
+    };
     this.lanternVisuals.set(id, visual);
     return visual;
   }
@@ -469,8 +518,10 @@ export class IslandSceneView {
     const eyeGeo = new THREE.SphereGeometry(0.11, 8, 8);
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
     leftEye.position.set(-0.2, 1.12, 0.52);
+    leftEye.name = "eyeL";
     const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
     rightEye.position.set(0.2, 1.12, 0.52);
+    rightEye.name = "eyeR";
     group.add(leftEye, rightEye);
 
     this.scene.add(group);
@@ -580,23 +631,48 @@ export class IslandSceneView {
     this.dirLight.intensity = 0.55 + ratio * 0.65;
     this.fog.density = 0.012 - ratio * 0.005;
 
-    // 3. Lanterns
+    // 3. Lanterns (v1.2: fuel bar, 1 Hz low-fuel blink, squished/torn unlit lantern)
+    const lowFuelBlinkOn = Math.floor(this.animTime * 2) % 2 === 0; // 1 Hz blink
     for (const lantern of snapshot.lanterns) {
       let visual = this.lanternVisuals.get(lantern.id);
       if (!visual) {
         visual = this.createLanternVisual(lantern.id, lantern.pos);
       }
       visual.group.position.set(lantern.pos[0], lantern.pos[1], lantern.pos[2]);
-      visual.orbMesh.rotation.y += dt * (lantern.lit ? 1.4 : 0.35);
+      visual.orbMesh.rotation.y += dt * (lantern.lit ? 1.4 : 0.25);
 
       if (lantern.lit) {
+        const lowFuel = lantern.fuel < this.tuning.low_fuel_threshold;
+        visual.orbMesh.scale.set(1, 1, 1);
+        visual.tearGroup.visible = false;
+        visual.fuelBarGroup.visible = true;
+        visual.fuelBarGroup.lookAt(this.camera.position);
+
+        const frac = Math.max(0.01, Math.min(1, lantern.fuel / this.tuning.fuel_max));
+        visual.fuelBarFill.scale.x = frac;
+        visual.fuelBarFill.position.x = -(1 - frac) * 0.75;
+        visual.fuelBarMat.color.setHex(
+          lowFuel ? (this.colorblind ? 0xffffff : 0xff5a5f) : PALETTE.lanternLit
+        );
+        visual.fuelBarFill.visible = !lowFuel || lowFuelBlinkOn;
+
         visual.orbMat.color.setHex(PALETTE.lanternCore);
         visual.orbMat.emissive.setHex(PALETTE.lanternLit);
-        visual.orbMat.emissiveIntensity = 2.0 + Math.sin(this.animTime * 3) * 0.25;
-        visual.light.intensity = 7.0;
-        visual.safeRingMat.opacity = 0.34;
+        visual.orbMat.emissiveIntensity = lowFuel
+          ? lowFuelBlinkOn
+            ? 2.2
+            : 0.45
+          : 2.0 + Math.sin(this.animTime * 3) * 0.25;
+        visual.light.intensity = lowFuel ? (lowFuelBlinkOn ? 5.5 : 1.5) : 7.0;
+        visual.safeRingMat.opacity = lowFuel ? 0 : 0.34;
       } else {
-        const progress = Math.min(1, lantern.deposited / Math.max(1, this.tuning.lantern_cost));
+        const req = lantern.everLit ? this.tuning.relight_cost : this.tuning.lantern_cost;
+        const progress = Math.min(1, lantern.deposited / Math.max(1, req));
+        // Unlit lantern is deflated 20% with torn paper marks
+        visual.orbMesh.scale.set(1.06, 0.8, 1.06);
+        visual.tearGroup.visible = true;
+        visual.fuelBarGroup.visible = false;
+
         visual.orbMat.color.setHex(PALETTE.lanternOff);
         visual.orbMat.emissive.setHex(progress > 0 ? PALETTE.lanternLit : PALETTE.lanternOff);
         visual.orbMat.emissiveIntensity = 0.3 + progress * 0.9;
@@ -644,6 +720,7 @@ export class IslandSceneView {
         group.rotation.y = Math.atan2(dx, dz);
       }
       group.scale.setScalar(shade.state === "spawning" ? 0.65 : 1.0);
+      const shadeAccent = this.colorblind ? 0x00b3ff : PALETTE.shadeEdge;
       const body = group.getObjectByName("body") as THREE.Mesh | undefined;
       if (body && body.material instanceof THREE.MeshStandardMaterial) {
         if (shade.state === "stunned") {
@@ -652,8 +729,15 @@ export class IslandSceneView {
           body.material.emissiveIntensity = 0.7;
         } else {
           body.material.color.setHex(PALETTE.shadeBody);
-          body.material.emissive.setHex(PALETTE.shadeEdge);
-          body.material.emissiveIntensity = shade.state === "recoil" ? 0.4 : 0.85;
+          body.material.emissive.setHex(shadeAccent);
+          body.material.emissiveIntensity =
+            shade.state === "drain" ? 1.35 : shade.state === "recoil" ? 0.4 : 0.85;
+        }
+      }
+      for (const eyeName of ["eyeL", "eyeR"]) {
+        const eye = group.getObjectByName(eyeName) as THREE.Mesh | undefined;
+        if (eye && eye.material instanceof THREE.MeshBasicMaterial) {
+          eye.material.color.setHex(shadeAccent);
         }
       }
     }
