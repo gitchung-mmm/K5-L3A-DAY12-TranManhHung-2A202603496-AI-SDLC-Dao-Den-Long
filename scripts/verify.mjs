@@ -34,10 +34,10 @@ for (const night of ["1", "2", "3"]) {
 }
 console.log("  -> Nights 1, 2, 3 byte-identical determinism verified.");
 
-console.log("[3/4] Running 21,600-tick full-night headless performance benchmark (<= 30s)...");
+console.log("[3/4] Running 18,000-tick full-night (Night 3) headless performance benchmark (<= 30s)...");
 const perfSc = path.join(tmpDir, "perf-sc.json");
 fs.writeFileSync(perfSc, JSON.stringify({ random_shades: false, wind_enabled: true }));
-const perfOut = path.join(tmpDir, "perf-21600.jsonl");
+const perfOut = path.join(tmpDir, "perf-18000.jsonl");
 const start = performance.now();
 runOrFail(process.execPath, [
   "dist/cli/headless.js",
@@ -48,7 +48,7 @@ runOrFail(process.execPath, [
   "--scenario",
   perfSc,
   "--ticks",
-  "21600",
+  "18000",
   "--snapshot-every",
   "60",
   "--out",

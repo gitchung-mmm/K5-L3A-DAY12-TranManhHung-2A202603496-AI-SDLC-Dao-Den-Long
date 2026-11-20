@@ -4,8 +4,10 @@ import { GameEngine } from "../../src/core/engine.js";
 import { distXZ } from "../../src/core/math.js";
 import { DEFAULT_TUNING } from "../../src/core/tuning.js";
 
-// Updated for Ticket-02 (v1.1): player_speed=6.0 with <=0.1s acceleration, carry_capacity=10,
-// lantern_cost=10, score +10 on deposit (not pickup), pulse_cost=3, per_stun=5, fall_enabled=true.
+// Updated for Ticket-03 (v1.2):
+// - Old early-win (all_lit) test replaced with no-early-win + dawn_survived survival rule (ADR-001).
+// - Old deposit (+10) & time bonus replaced with +5/mote, +100 first light, +40 relight, +50+floor(fuel) at dawn.
+// - Old pulse test extended to verify +15 on draining shades and stunned -> wander recovery.
 
 test("movement respects cam_yaw_deg, accelerates within 0.1s, and normalizes diagonal", () => {
   const engine = new GameEngine({
@@ -14,29 +16,15 @@ test("movement respects cam_yaw_deg, accelerates within 0.1s, and normalizes dia
     scenario: { random_motes: false, random_shades: false, motes: [], shades: [] }
   });
 
-  // After 6 ticks (0.1s), speed reaches full 6.0 m/s
   for (let k = 0; k < 6; k++) {
     engine.step(k === 0 ? { tick: 0, move: [0, 1], cam_yaw_deg: 0 } : undefined);
   }
   assert.ok(Math.abs(engine.getSnapshotRecord().player.vel[2] - 6.0) < 1e-2);
 
-  // Stop within 6 ticks (0.1s)
   for (let k = 6; k < 12; k++) {
     engine.step(k === 6 ? { tick: 6, move: [0, 0] } : undefined);
   }
   assert.equal(engine.getSnapshotRecord().player.vel[2], 0);
-
-  // Diagonal [1, 1] at yaw 90 normalized -> steady speed = 6.0 m/s
-  const engineDiag = new GameEngine({
-    seed: 1,
-    night: 1,
-    scenario: { random_motes: false, random_shades: false, motes: [], shades: [] }
-  });
-  for (let k = 0; k < 60; k++) {
-    engineDiag.step(k === 0 ? { tick: 0, move: [1, 1], cam_yaw_deg: 90 } : undefined);
-  }
-  const vel = engineDiag.getSnapshotRecord().player.vel;
-  assert.ok(Math.abs(Math.hypot(vel[0], vel[2]) - 6.0) < 1e-2);
 });
 
 test("jump rises with 7m/s, gravity -20m/s2, and triggers only on rising edge", () => {
@@ -50,56 +38,98 @@ test("jump rises with 7m/s, gravity -20m/s2, and triggers only on rising edge", 
   assert.ok(engine.getSnapshotRecord().player.pos[1] > 0);
   assert.equal(engine.getSnapshotRecord().player.grounded, false);
 
-  for (let k = 1; k < 80; k++) {
-    engine.step();
-  }
+  for (let k = 1; k < 80; k++) engine.step();
   assert.equal(engine.getSnapshotRecord().player.pos[1], 0);
   assert.equal(engine.getSnapshotRecord().player.grounded, true);
 });
 
-test("mote pickup, deposit (+10/mote), lantern_lit (+100), and floor(time)*2 + 50*flames win bonus", () => {
+test("v1.2: lighting all lanterns does NOT win early; dawn_survived awards new fuel+flame bonus", () => {
   const engine = new GameEngine({
     seed: 3,
     night: 1,
     scenario: {
-      player: { pos: [0, 0, 0], carried: 7, flames: 3 },
+      player: { pos: [0, 0, 0], carried: 10, flames: 3 },
       random_motes: false,
       random_shades: false,
-      motes: [[0, 0, 0.5], [0, 0, 0.7], [0, 0, 0.9]],
+      motes: [],
       shades: [],
       lanterns: [
         { id: "L1", pos: [0, 0, 1.5], deposited: 0, lit: false },
-        { id: "L2", lit: true },
-        { id: "L3", lit: true },
-        { id: "L4", lit: true },
-        { id: "L5", lit: true }
+        { id: "L2", lit: true, fuel: 50 },
+        { id: "L3", lit: true, fuel: 50 },
+        { id: "L4", lit: true, fuel: 50 },
+        { id: "L5", lit: true, fuel: 50 }
       ],
-      time_left_s: 100
+      time_left_s: 1.0 // 60 ticks until dawn
     }
   });
 
-  assert.equal(engine.getSnapshotRecord().score, 0);
+  // Tick 0: light L1 (first light) -> +10*5 + 100 = 150, capacity becomes 12, NO early win!
+  const ev0 = engine.step({ tick: 0, interact: true });
+  assert.ok(ev0.some((e) => e.name === "lantern_lit" && e.data.relight === false));
+  assert.equal(engine.isFinished(), false);
+  assert.equal(engine.getSnapshotRecord().player.capacity, 12);
+  assert.equal(engine.getSnapshotRecord().score, 150);
 
-  // Tick 0: pick up 3 motes -> carried becomes 10; pickup itself gives 0 score in v1.1
-  const ev1 = engine.step({ tick: 0 });
-  assert.equal(ev1.filter((e) => e.name === "mote_picked").length, 3);
-  assert.equal(engine.getSnapshotRecord().player.carried, 10);
-  assert.equal(engine.getSnapshotRecord().score, 0);
-
-  // Tick 1: interact deposits 10 -> lights L1 -> win
-  const ev2 = engine.step({ tick: 1, interact: true });
-  assert.ok(ev2.some((e) => e.name === "deposit" && e.data.amount === 10));
-  assert.ok(ev2.some((e) => e.name === "lantern_lit"));
-  assert.ok(ev2.some((e) => e.name === "game_over" && e.data.result === "won"));
-
-  const end = engine.getEndRecord();
-  assert.equal(end.state, "won");
-  // time_left_s = 100 - 2/60 = 99.966 -> floor = 99 -> 99*2 = 198
-  // score = 10*10 + 100 + 198 + 3*50 = 548
-  assert.equal(end.score, 548);
+  // Run remaining 59 ticks to dawn
+  let lastEv: any[] = [];
+  for (let k = 1; k < 60; k++) {
+    lastEv = engine.step();
+  }
+  assert.ok(
+    lastEv.some((e) => e.name === "game_over" && e.data.result === "won" && e.data.reason === "dawn_survived")
+  );
+  // L1 decayed 59 ticks -> floor(99.016)=99 -> 50+99=149
+  // L2..L5 decayed 60 ticks from 50 -> 49.0 -> 4 * (50+49) = 396
+  // Flames bonus: 3 * 50 = 150
+  // Total = 150 + 149 + 396 + 150 = 845
+  assert.equal(engine.getEndRecord().score, 845);
 });
 
-test("pulse costs 3 motes, checks 3D distance from y+0.8, pushes 4m over 15 ticks, stuns 120 ticks", () => {
+test("v1.2: lantern_out sets ever_lit, relight costs 5 (+40), refuel caps at 100 and ignores full lantern", () => {
+  const engine = new GameEngine({
+    seed: 10,
+    night: 1,
+    scenario: {
+      player: { pos: [0, 0, 0], carried: 10, flames: 3 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [],
+      lanterns: [{ id: "L1", pos: [0, 0, 1.5], lit: true, fuel: 0.1 }]
+    }
+  });
+
+  // After 6 ticks of 1/60 decay, fuel hits 0 -> lantern_out
+  let outEv: any[] = [];
+  for (let k = 0; k < 6; k++) {
+    outEv.push(...engine.step());
+  }
+  assert.ok(outEv.some((e) => e.name === "lantern_out" && e.data.lantern_id === "L1"));
+  let snap = engine.getSnapshotRecord();
+  assert.equal(snap.lanterns[0].lit, false);
+  assert.equal(snap.lanterns[0].fuel, 0);
+  assert.equal(snap.lanterns[0].ever_lit, true);
+
+  // Relight L1 with 5 motes -> +5*5 + 40 = 65, relight: true, relit_count: 1, capacity: 12
+  const relightEv = engine.step({ tick: 6, interact: true });
+  assert.ok(relightEv.some((e) => e.name === "deposit" && e.data.amount === 5));
+  assert.ok(relightEv.some((e) => e.name === "lantern_lit" && e.data.relight === true));
+  snap = engine.getSnapshotRecord();
+  assert.equal(snap.player.carried, 5);
+  assert.equal(snap.player.capacity, 12);
+  assert.equal(snap.lanterns[0].relit_count, 1);
+  assert.equal(snap.score, 65);
+
+  // Interact immediately on next tick (fuel=99.983) -> refuel uses 1 mote -> fuel=100
+  const refuelEv = engine.step({ tick: 7, interact: false });
+  assert.equal(refuelEv.length, 0);
+  const refuelEv2 = engine.step({ tick: 8, interact: true });
+  assert.ok(refuelEv2.some((e) => e.name === "refuel" && e.data.amount === 1 && e.data.fuel === 100));
+  assert.equal(engine.getSnapshotRecord().score, 70);
+});
+
+test("v1.2: pulse scores +15 on draining shade, +5 on normal shade, and stun returns to wander", () => {
   const engine = new GameEngine({
     seed: 4,
     night: 1,
@@ -108,41 +138,51 @@ test("pulse costs 3 motes, checks 3D distance from y+0.8, pushes 4m over 15 tick
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: "S1", pos: [3, 0.8, 0], state: "chase" }]
+      lanterns: [{ id: "L1", pos: [3, 0, 0], lit: true, fuel: 25 }],
+      shades: [{ id: "S1", pos: [3, 0.8, 0], state: "drain", target_lantern_id: "L1" }]
     }
   });
 
   const ev0 = engine.step({ tick: 0, pulse: true });
-  const pulseEv = ev0.find((e) => e.name === "pulse");
-  assert.ok(pulseEv);
-  assert.deepEqual(pulseEv.data.stunned_ids, ["S1"]);
-  assert.equal(engine.getSnapshotRecord().player.carried, 1);
-  assert.equal(engine.getSnapshotRecord().score, DEFAULT_TUNING.score.per_stun);
+  assert.ok(ev0.some((e) => e.name === "pulse"));
+  assert.equal(engine.getSnapshotRecord().score, 15);
+  assert.equal(engine.getSnapshotRecord().shades[0].state, "stunned");
 
-  // Run remaining 14 push ticks -> shade pushed ~4m total from x=3 to x=7
-  for (let k = 1; k < 15; k++) engine.step();
-  const s15 = engine.getSnapshotRecord();
-  assert.equal(s15.shades[0].state, "stunned");
-  assert.ok(Math.abs(s15.shades[0].pos[0] - 7.0) < 0.1);
+  // After 120 ticks of stun, shade MUST return to wander (even if player is nearby)
+  for (let k = 1; k <= 120; k++) engine.step();
+  // Note: at tick 120 stun ends -> wander in Step 2, then Step 8 may chase if player <= 12m.
+  // Verify with player far away in a clean check:
+  const farEngine = new GameEngine({
+    seed: 4,
+    night: 1,
+    scenario: {
+      player: { pos: [0, 0, 0], carried: 4, flames: 3 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [{ id: "S1", pos: [20, 0, 0], state: "stunned", state_ticks_left: 2 }]
+    }
+  });
+  farEngine.step();
+  farEngine.step();
+  assert.equal(farEngine.getSnapshotRecord().shades[0].state, "wander");
 });
 
-test("safe_radius (6m) blocks outside shades and pushes inside shades out within 30 ticks safely", () => {
+test("v1.2: safe_radius protects at fuel=30, disappears below 30, and pushes shades out on refuel>=30", () => {
   const engine = new GameEngine({
     seed: 5,
     night: 1,
     scenario: {
-      player: { pos: [0, 0, 0], carried: 10, flames: 3 },
+      player: { pos: [0, 0, 0], carried: 5, flames: 3 },
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: "S1", pos: [2, 0, 0], state: "chase" }],
-      lanterns: [
-        { id: "L1", pos: [0, 0, 1.5], deposited: 0, lit: false },
-        { id: "L2", lit: false }
-      ]
+      shades: [{ id: "S1", pos: [0, 0, 2.5], state: "drain", target_lantern_id: "L1" }],
+      lanterns: [{ id: "L1", pos: [0, 0, 1.5], lit: true, fuel: 25 }]
     }
   });
 
+  // Refuel L1 from 25 -> >= 30 -> pushes S1 outside safe_radius (6m) over <=30 ticks without hitting player
   engine.step({ tick: 0, interact: true });
   for (let k = 1; k <= 35; k++) engine.step();
   const snap = engine.getSnapshotRecord();

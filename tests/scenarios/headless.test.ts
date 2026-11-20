@@ -42,9 +42,105 @@ test("headless CLI v1.1 outputs schema v1.1 and is byte-identical across runs", 
   assert.equal(snap0.type, "snapshot");
   assert.equal(snap0.night, 1);
   assert.ok("wind" in snap0 && "drifters" in snap0 && "charms" in snap0);
-  assert.ok("vel" in snap0.player && "grounded" in snap0.player && "dash_cd_s" in snap0.player);
+  assert.ok(
+    "vel" in snap0.player &&
+      "grounded" in snap0.player &&
+      "dash_cd_s" in snap0.player &&
+      "capacity" in snap0.player
+  );
+  assert.ok(
+    "fuel" in snap0.lanterns[0] &&
+      "ever_lit" in snap0.lanterns[0] &&
+      "relit_count" in snap0.lanterns[0]
+  );
   assert.equal(snap0.motes.length, 20);
   assert.ok(r1.records.some((r) => r.type === "event" && r.name === "shade_spawned"));
+});
+
+test("scenario v1.2: shade drains weak lantern (fuel_drain every 60 ticks) and lantern extinguishes", () => {
+  const dir = makeTmpDir();
+  const sc = path.join(dir, "sc.json");
+  const out = path.join(dir, "out.jsonl");
+
+  fs.writeFileSync(
+    sc,
+    JSON.stringify({
+      player: { pos: [-30, 0, 0], carried: 0, flames: 3 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      lanterns: [{ id: "L1", pos: [10, 0, 0], lit: true, fuel: 12 }],
+      shades: [{ id: "S1", pos: [11, 0, 0], state: "drain", target_lantern_id: "L1" }]
+    })
+  );
+
+  const res = runHeadless([
+    "--seed",
+    "11",
+    "--night",
+    "1",
+    "--scenario",
+    sc,
+    "--ticks",
+    "150",
+    "--snapshot-every",
+    "30",
+    "--out",
+    out
+  ]);
+  assert.equal(res.status, 0, res.stderr);
+  // 12 fuel drained at (1 + 5) = 6/s -> fuel_drain at tick 60 (fuel=6.0) & tick 120 (fuel=0.0) + lantern_out at tick 120
+  const drainEvents = res.records.filter((r) => r.type === "event" && r.name === "fuel_drain");
+  assert.ok(drainEvents.length >= 2);
+  assert.equal(drainEvents[0].tick, 60);
+  assert.equal(drainEvents[0].data.fuel, 6);
+  assert.ok(res.records.some((r) => r.type === "event" && r.name === "lantern_out" && r.tick === 120));
+});
+
+test("scenario v1.2: dawn_survived requires >= ceil(0.6*total) lit lanterns, otherwise dawn loss", () => {
+  const dir = makeTmpDir();
+  const scWin = path.join(dir, "win.json");
+  const scLose = path.join(dir, "lose.json");
+  const outWin = path.join(dir, "win.jsonl");
+  const outLose = path.join(dir, "lose.jsonl");
+
+  fs.writeFileSync(
+    scWin,
+    JSON.stringify({
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [],
+      lanterns: [
+        { id: "L1", lit: true, fuel: 50 },
+        { id: "L2", lit: true, fuel: 50 },
+        { id: "L3", lit: true, fuel: 50 }
+      ],
+      time_left_s: 0.5
+    })
+  );
+  fs.writeFileSync(
+    scLose,
+    JSON.stringify({
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [],
+      lanterns: [
+        { id: "L1", lit: true, fuel: 50 },
+        { id: "L2", lit: true, fuel: 50 }
+      ],
+      time_left_s: 0.5
+    })
+  );
+
+  const rWin = runHeadless(["--seed", "12", "--night", "1", "--scenario", scWin, "--ticks", "60", "--out", outWin]);
+  const rLose = runHeadless(["--seed", "12", "--night", "1", "--scenario", scLose, "--ticks", "60", "--out", outLose]);
+  assert.equal(rWin.status, 0, rWin.stderr);
+  assert.equal(rLose.status, 0, rLose.stderr);
+
+  assert.ok(rWin.records.some((r) => r.type === "event" && r.name === "game_over" && r.data.reason === "dawn_survived"));
+  assert.ok(rLose.records.some((r) => r.type === "event" && r.name === "game_over" && r.data.reason === "dawn"));
 });
 
 test("scenario: dash moves at 14m/s for 12 ticks, holds air height, and sets 1.5s cooldown", () => {

@@ -25,6 +25,7 @@ const VALID_SHADE_STATES = new Set<ShadeBehaviorState>([
   "spawning",
   "wander",
   "chase",
+  "drain",
   "recoil",
   "stunned"
 ]);
@@ -174,6 +175,12 @@ export function validateScenarioConfig(raw: unknown): ScenarioConfig {
         "scenario.player.charm_ticks"
       );
     }
+    if (raw.player.successful_lights !== undefined) {
+      out.player.successful_lights = assertNonNegInt(
+        raw.player.successful_lights,
+        "scenario.player.successful_lights"
+      );
+    }
   }
 
   for (const flag of ["random_motes", "random_shades", "random_drifters", "wind_enabled"] as const) {
@@ -250,7 +257,7 @@ export function validateScenarioConfig(raw: unknown): ScenarioConfig {
             !VALID_SHADE_STATES.has(item.state as ShadeBehaviorState)
           ) {
             throw new ContractValidationError(
-              `scenario.shades[${i}].state must be spawning|wander|chase|recoil|stunned`
+              `scenario.shades[${i}].state must be spawning|wander|chase|drain|recoil|stunned`
             );
           }
           shade.state = item.state as ShadeBehaviorState;
@@ -260,6 +267,14 @@ export function validateScenarioConfig(raw: unknown): ScenarioConfig {
             item.state_ticks_left,
             `scenario.shades[${i}].state_ticks_left`
           );
+        }
+        if (item.target_lantern_id !== undefined) {
+          if (typeof item.target_lantern_id !== "string") {
+            throw new ContractValidationError(
+              `scenario.shades[${i}].target_lantern_id must be a string`
+            );
+          }
+          shade.target_lantern_id = item.target_lantern_id;
         }
         return shade;
       }
@@ -367,6 +382,18 @@ export function validateScenarioConfig(raw: unknown): ScenarioConfig {
           throw new ContractValidationError(`scenario.lanterns[${i}].lit must be a boolean`);
         }
         lantern.lit = item.lit;
+      }
+      if (item.fuel !== undefined) {
+        if (!isFiniteNumber(item.fuel) || item.fuel < 0 || item.fuel > 100) {
+          throw new ContractValidationError(`scenario.lanterns[${i}].fuel must be in [0, 100]`);
+        }
+        lantern.fuel = item.fuel;
+      }
+      if (item.ever_lit !== undefined) {
+        if (typeof item.ever_lit !== "boolean") {
+          throw new ContractValidationError(`scenario.lanterns[${i}].ever_lit must be a boolean`);
+        }
+        lantern.ever_lit = item.ever_lit;
       }
       return lantern;
     });
