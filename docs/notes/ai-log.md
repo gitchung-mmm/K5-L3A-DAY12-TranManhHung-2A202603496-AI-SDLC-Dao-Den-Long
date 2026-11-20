@@ -29,3 +29,15 @@
   - Sửa tập trung vào `src/core/` và chạy `npm run verify` (21/21 tests pass ngay lần đầu) trước khi chỉnh lớp Web 3D (`scene.ts`, `index.html`, `main.ts`) để kịp tiến độ 30 phút.
 - **Xử lý thay đổi phá vỡ tương thích:** Cập nhật rõ lý do các unit test cũ (`all_lit` → `dawn_survived`, điểm `+5`/mote, `+15` khi pulse Bóng Mực đang `drain`, hết choáng về `wander`), không tắt test âm thầm.
 - **Ước tính token Phase 3:** ~40k tokens.
+
+---
+
+## Phase 4 (TICKET-04 — "Bình minh: phát hành v1.0.0" / Contract v1.3)
+- **Chiến lược & Kiến trúc:**
+  - Tách riêng `src/core/bench-sim.ts` & `src/core/leaderboard.ts` (thuần TypeScript, kiểm thử được qua CLI) khỏi UI Web 3D (`src/main.ts`, `src/game/scene.ts`).
+  - Mọi phần mở rộng hiển thị (thiên nhiên `src/game/decor.ts`, nâng cấp rig `src/game/models.ts`, sáng tạo `creative.ts` / `festival.ts`) đều nằm gọn trong `src/game/` và tự động tắt trong chế độ `headless` / `bench`, đảm bảo mã băm SHA256 đầu ra headless 3 Đêm không đổi một byte nào.
+- **Lỗi phát hiện & khắc phục:**
+  1. `src/cli/soak.ts`: Thiếu kiểu trả về cho hàm đọc input gây lỗi TS7022 → bổ sung chú thích kiểu `: boolean` rõ ràng.
+  2. Mũi tên chỉ đèn ngoài màn hình (`src/main.ts`) bị đè lên đồng hồ đếm ngược khi phóng to chữ `×1.25` → kẹp biên `py` trong `[120, h - 130]`.
+  3. Dùng `THREE.InstancedMesh` + `onBeforeCompile` vertex wind shader cho thảm cỏ `1.200+` khóm để giữ chỉ `2` draw call, duy trì `120 FPS` trên trình duyệt.
+- **Ước tính token Phase 4 (bao gồm nâng cấp 3D & UI):** ~110k tokens.

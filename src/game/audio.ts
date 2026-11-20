@@ -9,6 +9,17 @@ export class ProceduralAudio {
   private volume = 0.7;
   private bgmTimer: number | null = null;
   private bgmStep = 0;
+  private master: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private musicEnabled = true;
+
+  isMusicEnabled(): boolean { return this.musicEnabled; }
+
+  setMusicEnabled(enabled: boolean): void {
+    this.musicEnabled = enabled;
+    if (enabled) this.startMusic();
+    else this.stopMusic();
+  }
 
   isEnabled(): boolean {
     return this.enabled;
@@ -20,10 +31,14 @@ export class ProceduralAudio {
 
   setVolume(vol: number): void {
     this.volume = Math.max(0, Math.min(1, vol));
+    if (this.ctx && this.master) {
+      this.master.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime, 0.04);
+    }
   }
 
   toggle(): boolean {
     this.enabled = !this.enabled;
+    if (this.ctx && this.master) this.master.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime, 0.04);
     if (!this.enabled) {
       this.stopMusic();
     }
@@ -40,6 +55,9 @@ export class ProceduralAudio {
         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return null;
       this.ctx = new Ctor();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.volume;
+      this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") {
       void this.ctx.resume();
@@ -57,7 +75,7 @@ export class ProceduralAudio {
     const ctx = this.ensureContext();
     if (!ctx) return;
 
-    const scaledGain = Math.max(0.0002, gainPeak * this.volume);
+    const scaledGain = Math.max(0.0002, gainPeak);
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -70,26 +88,66 @@ export class ProceduralAudio {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.master!);
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     osc.start(now);
     osc.stop(now + duration + 0.03);
   }
 
   startMusic(): void {
-    if (typeof window === "undefined" || this.bgmTimer !== null) return;
-    // Gentle pentatonic night lullaby pad every 1.6s
-    const notes = [220.0, 261.63, 293.66, 329.63, 392.0, 329.63, 293.66, 246.94];
-    this.bgmTimer = window.setInterval(() => {
-      if (!this.enabled || this.volume <= 0.001) return;
-      const n = notes[this.bgmStep++ % notes.length];
-      this.tone(n, n * 1.003, 1.35, "sine", 0.025);
-    }, 1600);
+    if (typeof window === "undefined" || !this.musicEnabled || !this.enabled) return;
+    // Called directly by a user gesture to unlock audio on browsers.
+    const ctx = this.ensureContext();
+    if (!ctx || this.bgmTimer !== null) return;
+    this.musicBus = ctx.createGain();
+    this.musicBus.gain.setValueAtTime(0, ctx.currentTime);
+    this.musicBus.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.6);
+    this.musicBus.connect(this.master!);
+    const melody = [72, 76, 79, 81, 79, 76, 74, 0, 72, 74, 76, 79, 76, 74, 69, 0,
+      67, 72, 74, 76, 79, 76, 74, 72, 69, 72, 74, 69, 67, 0, 72, 0];
+    const chords = [[48, 55, 60], [45, 52, 57], [41, 48, 53], [43, 50, 55]];
+    const beat = (): void => {
+      if (!this.musicBus || !this.ctx) return;
+      const step = this.bgmStep++ % melody.length;
+      const when = this.ctx.currentTime + 0.03;
+      if (melody[step]) this.musicNote(melody[step], when, 1.5, 0.038, "sine");
+      const chord = chords[Math.floor(step / 8)];
+      this.musicNote(chord[step % 3] + 12, when, 1.1, 0.018, "triangle");
+      if (step % 8 === 0) for (const note of chord) this.musicNote(note, when, 4.5, 0.022, "sine");
+      if (step % 8 === 4) this.musicNote(91, when, 2.2, 0.009, "sine");
+    };
+    beat();
+    this.bgmTimer = window.setInterval(beat, 600);
+  }
+
+  private musicNote(midi: number, when: number, duration: number, level: number, type: OscillatorType): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicBus) return;
+    const oscillator = ctx.createOscillator();
+    const envelope = ctx.createGain();
+    oscillator.type = type;
+    oscillator.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+    envelope.gain.setValueAtTime(0, when);
+    envelope.gain.linearRampToValueAtTime(level, when + 0.08);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+    oscillator.connect(envelope);
+    envelope.connect(this.musicBus);
+    oscillator.start(when);
+    oscillator.stop(when + duration + 0.02);
+    oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect(); };
   }
 
   stopMusic(): void {
     if (this.bgmTimer !== null && typeof window !== "undefined") {
       window.clearInterval(this.bgmTimer);
       this.bgmTimer = null;
+    }
+    if (this.musicBus && this.ctx) {
+      const bus = this.musicBus;
+      bus.gain.cancelScheduledValues(this.ctx.currentTime);
+      bus.gain.setTargetAtTime(0, this.ctx.currentTime, 0.08);
+      window.setTimeout(() => bus.disconnect(), 600);
+      this.musicBus = null;
     }
   }
 

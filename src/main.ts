@@ -336,6 +336,29 @@ function runGameApp(): void {
   const creative = new CreativeWorld(view.scene, DEFAULT_TUNING);
   const audio = new ProceduralAudio();
   audio.setVolume(settings.volume);
+  const musicButton = document.getElementById("btn-music") as HTMLButtonElement;
+  const musicLabel = document.getElementById("music-label")!;
+  let musicActivated = false;
+  function updateMusicLabel(): void {
+    const on = musicActivated && audio.isMusicEnabled();
+    musicButton.setAttribute("aria-pressed", String(on));
+    musicLabel.textContent = on ? "Tắt nhạc" : "Bật nhạc";
+    musicButton.title = on ? "Đang phát: Đêm hội ký ức · Chỉnh âm lượng trong Cài đặt" : "Nghe nhạc nền Đêm hội ký ức";
+  }
+  function activateMusic(): void {
+    musicActivated = true;
+    audio.startMusic();
+    updateMusicLabel();
+  }
+  musicButton.addEventListener("click", () => {
+    if (!musicActivated) activateMusic();
+    else { audio.setMusicEnabled(!audio.isMusicEnabled()); updateMusicLabel(); }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) audio.stopMusic();
+    else if (musicActivated) audio.startMusic();
+  });
+  document.body.classList.add("menu-open");
 
   function applyAccessibility(): void {
     document.body.classList.toggle("colorblind", settings.colorblind);
@@ -422,6 +445,8 @@ function runGameApp(): void {
   let lastFps = 60;
 
   function showOnlyModal(active: HTMLElement | null): void {
+    document.body.classList.toggle("menu-open", active !== null);
+    document.body.classList.toggle("game-playing", active === null);
     for (const m of [modalMenu, modalIntro, modalPause, modalSettings, modalLeaderboard, modalResult]) {
       m.classList.toggle("visible", m === active);
     }
@@ -445,6 +470,7 @@ function runGameApp(): void {
   }
 
   function openIntroForNight(night: NightNumber, resetCampaign = false): void {
+    activateMusic();
     currentNight = night;
     if (resetCampaign) {
       totalCampaignScore = 0;
@@ -474,7 +500,7 @@ function runGameApp(): void {
     nightNameEl.textContent = getNightMap(night).name;
     screenMode = "playing";
     showOnlyModal(null);
-    audio.startMusic();
+    activateMusic();
   }
 
   function togglePauseViaEngine(): void {
@@ -485,7 +511,7 @@ function runGameApp(): void {
 
   function openMenu(): void {
     screenMode = "menu";
-    audio.stopMusic();
+    if (musicActivated) audio.startMusic();
     showOnlyModal(modalMenu);
   }
 
@@ -545,6 +571,7 @@ function runGameApp(): void {
     settings.volume = v;
     optVolumeVal.textContent = `${optVolume.value}%`;
     audio.setVolume(v);
+    if (musicActivated && v > 0) audio.startMusic();
     saveSettings(settings);
   });
   optSens.addEventListener("input", () => {
@@ -846,7 +873,6 @@ function runGameApp(): void {
       }
       resultShownForRun = true;
       screenMode = "result";
-      audio.stopMusic();
 
       let allowLeaderboardSave = false;
       if (snap.state === "won") {

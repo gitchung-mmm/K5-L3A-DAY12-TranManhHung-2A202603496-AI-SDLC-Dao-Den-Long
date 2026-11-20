@@ -477,6 +477,7 @@
         width: 210px;
       }
     </style>
+    <link rel="stylesheet" href="/src/game/interface.css" />
   </head>
   <body>
     <div id="app">
@@ -542,23 +543,54 @@
 
       <!-- Main Menu Modal -->
       <div class="overlay visible" id="modal-menu">
-        <div class="modal-box">
-          <h1>Đảo Đèn Lồng</h1>
-          <p>
-            Giữ đảo sáng tới bình minh qua 3 Đêm — Đảo Bến, Đảo Cau và Đảo Chuông — nạp dầu, bảo vệ đèn trước Bóng Mực và đón ánh sáng sớm mai.
-          </p>
-          <div class="modal-actions">
-            <button class="btn-primary" id="btn-play-campaign" type="button">Bắt đầu hành trình (Đêm 1)</button>
-            <div class="modal-row">
-              <button class="btn-secondary" data-select-night="1" type="button">Đêm 1</button>
-              <button class="btn-secondary" data-select-night="2" type="button">Đêm 2</button>
-              <button class="btn-secondary" data-select-night="3" type="button">Đêm 3</button>
+        <div class="modal-box welcome-shell">
+          <div class="welcome-top"><span class="brand-mark">✦ &nbsp; MỘT CHUYẾN ĐI QUA ĐÊM</span><span class="edition">ĐÊM HỘI KÝ ỨC</span></div>
+          <div class="welcome-main">
+            <div class="welcome-copy">
+              <span class="eyebrow">NƠI ÁNH SÁNG TÌM ĐƯỜNG VỀ</span>
+              <h1>Đảo<br /><em>Đèn Lồng</em></h1>
+              <p class="welcome-lead">Một đốm sáng nhỏ.<br />Cả hòn đảo chờ bình minh.</p>
+              <p class="welcome-description">Cùng Mây và Tàn gom đom đóm, giữ lửa đèn và đánh thức những ký ức ngủ quên giữa biển mây.</p>
+              <button class="btn-primary journey-button" id="btn-play-campaign" type="button">Bắt đầu hành trình <span aria-hidden="true">↗</span></button>
+              <span class="journey-note">3 hòn đảo · Một lời hẹn với bình minh</span>
             </div>
-            <div class="modal-row">
-              <button class="btn-secondary" id="btn-open-leaderboard" type="button">Bảng xếp hạng</button>
-              <button class="btn-secondary" id="btn-open-settings-menu" type="button">Cài đặt & Phím</button>
+            <div class="welcome-art" aria-hidden="true">
+              <svg viewBox="0 0 520 460" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="halo"><stop stop-color="#eab46a" stop-opacity=".24"/><stop offset="1" stop-color="#eab46a" stop-opacity="0"/></radialGradient>
+                  <linearGradient id="paper" x2="0" y2="1"><stop stop-color="#ffdda3"/><stop offset="1" stop-color="#d9803e"/></linearGradient>
+                  <linearGradient id="island" x2="0" y2="1"><stop stop-color="#36565b"/><stop offset="1" stop-color="#152b39"/></linearGradient>
+                </defs>
+                <circle cx="275" cy="209" r="205" fill="url(#halo)"/>
+                <circle cx="275" cy="209" r="157" stroke="#e9c58a" stroke-opacity=".12"/>
+                <circle cx="275" cy="209" r="190" stroke="#e9c58a" stroke-opacity=".07" stroke-dasharray="2 10"/>
+                <path d="M70 361 Q175 317 272 353 T481 351 M33 389 Q166 351 295 388 T501 382" stroke="#86abaa" stroke-opacity=".18" stroke-width="2"/>
+                <ellipse cx="278" cy="355" rx="154" ry="26" fill="#07151e" opacity=".5"/>
+                <path d="M120 322 Q259 263 411 322 L365 359 277 386 179 355Z" fill="url(#island)"/>
+                <ellipse cx="265" cy="319" rx="145" ry="34" fill="#395c59"/>
+                <path d="M164 323 Q266 294 371 321" stroke="#98ae83" stroke-opacity=".4"/>
+                <g class="hero-lantern">
+                  <path d="M280 30V91" stroke="#d2b17c" stroke-width="2"/>
+                  <rect x="256" y="89" width="48" height="9" rx="4" fill="#9e7145"/>
+                  <path d="M257 99 Q214 137 239 194 Q280 224 321 194 Q346 137 303 99Z" fill="url(#paper)"/>
+                  <path d="M267 100 Q247 155 266 207 M292 100 Q312 155 293 207 M280 98V211" stroke="#aa632c" stroke-opacity=".45" stroke-width="2"/>
+                  <path d="M239 123Q280 133 322 123 M233 177Q280 190 327 177" stroke="#fff0bf" stroke-opacity=".5"/>
+                  <rect x="258" y="207" width="44" height="8" rx="3" fill="#9e7145"/>
+                  <path d="M280 215V240 M273 237V259 M280 237V265 M287 237V259" stroke="#e3ac63" stroke-width="3"/>
+                </g>
+                <g opacity=".6"><path d="M128 112V157 M404 71V129" stroke="#d2b17c"/><ellipse cx="128" cy="175" rx="16" ry="23" fill="url(#paper)"/><ellipse cx="404" cy="149" rx="20" ry="28" fill="url(#paper)"/><path d="M128 198V216 M404 177V198" stroke="#f1be76"/></g>
+                <g transform="translate(255 277)"><path d="M0 9L-16 39Q0 48 16 39Z" fill="#c48b61"/><circle cy="5" r="8" fill="#edcfa1"/><path d="M-24 5L0-11 24 5Q0 14-24 5" fill="#e7c685"/><path d="M16 24L27 20" stroke="#edcfa1" stroke-width="3"/><circle cx="29" cy="22" r="5" fill="#ffe3a0"/></g>
+                <g class="art-sparks" fill="#ffe1a1"><circle cx="180" cy="240" r="3"/><circle cx="350" cy="267" r="2"/><circle cx="208" cy="157" r="2"/><circle cx="375" cy="221" r="3"/><circle cx="151" cy="282" r="2"/><circle cx="319" cy="77" r="2"/><path d="M310 283l5-12 4 7 8-3 1 13-9 5Z"/></g>
+              </svg>
+              <div class="art-caption"><span>✧</span> Thắp ký ức. Giữ bình minh.</div>
             </div>
           </div>
+          <div class="island-select"><span class="eyebrow">CHỌN MỘT ĐÊM ĐỂ KHÁM PHÁ</span><div class="night-cards">
+            <button data-select-night="1" type="button"><span class="night-number">01</span><span><strong>Đảo Bến</strong><small>Nơi hành trình bắt đầu</small></span><span aria-hidden="true">↗</span></button>
+            <button data-select-night="2" type="button"><span class="night-number">02</span><span><strong>Đảo Cau</strong><small>Qua những tán cây</small></span><span aria-hidden="true">↗</span></button>
+            <button data-select-night="3" type="button"><span class="night-number">03</span><span><strong>Đảo Chuông</strong><small>Lời hẹn trong gió</small></span><span aria-hidden="true">↗</span></button>
+          </div></div>
+          <div class="welcome-footer"><span>Giữ đủ đèn sáng tới bình minh để vượt qua mỗi đêm.</span><div><button id="btn-open-leaderboard" type="button">Bảng xếp hạng</button><button id="btn-open-settings-menu" type="button">Cài đặt & Phím</button></div></div>
         </div>
       </div>
 
@@ -667,6 +699,7 @@
         </div>
       </div>
     </div>
+    <button id="btn-music" class="music-control" type="button" aria-pressed="false"><span aria-hidden="true">♫</span> <span id="music-label">Bật nhạc</span></button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
