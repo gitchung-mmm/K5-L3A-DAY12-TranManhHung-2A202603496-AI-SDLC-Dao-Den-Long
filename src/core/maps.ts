@@ -140,7 +140,7 @@ function buildNight3(): NightMapDef {
     name: "Đêm 3 — Đảo Chuông",
     introQuote: "Ông Đăng: \"Đêm cuối trên Đảo Chuông ba tầng! Leo dốc, bật bục nhảy lên tháp chuông và giữ vững bước chân trước gió lớn!\"",
     islandRadius: 45,
-    spawnPos: [0, 0, -12],
+    spawnPos: [0, 0, -24],
     durationS: 360,
     shadeSpeed: 4.5,
     shadeIntervalTicks: 360,

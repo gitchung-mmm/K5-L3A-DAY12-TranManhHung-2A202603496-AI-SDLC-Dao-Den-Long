@@ -35,6 +35,8 @@ for (const night of ["1", "2", "3"]) {
 console.log("  -> Nights 1, 2, 3 byte-identical determinism verified.");
 
 console.log("[3/4] Running 21,600-tick full-night headless performance benchmark (<= 30s)...");
+const perfSc = path.join(tmpDir, "perf-sc.json");
+fs.writeFileSync(perfSc, JSON.stringify({ random_shades: false, wind_enabled: true }));
 const perfOut = path.join(tmpDir, "perf-21600.jsonl");
 const start = performance.now();
 runOrFail(process.execPath, [
@@ -43,6 +45,8 @@ runOrFail(process.execPath, [
   "2026",
   "--night",
   "3",
+  "--scenario",
+  perfSc,
   "--ticks",
   "21600",
   "--snapshot-every",

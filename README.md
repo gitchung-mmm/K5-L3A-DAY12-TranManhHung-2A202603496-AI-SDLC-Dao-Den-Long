@@ -1,13 +1,13 @@
 # Đảo Đèn Lồng (K5-L3A-DAY12-TranManhHung-2A202603496)
 
-> Game 3D góc nhìn thứ ba: điều khiển Mây, người giữ đèn nhỏ tuổi đội nón lá, thu thập đom đóm để thắp sáng 5 Đèn Lồng Lớn trên Đảo Bến và né Bóng Mực trong sương đen.
+> Game 3D góc nhìn thứ ba qua **3 Đêm** (*Đảo Bến*, *Đảo Cau*, *Đảo Chuông*): điều khiển Mây, người giữ đèn nhỏ tuổi đội nón lá, thu thập đom đóm để thắp sáng các Đèn Lồng Lớn, né Bóng Mực và Gió Lạc, tận dụng kỹ năng Lướt, Bục nhảy và Bùa Gió để đón Bình Minh.
 > *(Video demo sẽ được bổ sung ở bản phát hành `v1.0.0` tại Phase 4.)*
 
 ---
 
 ## Cài đặt & Chạy game (3 lệnh)
 
-Yêu cầu: **Node.js >= 20** (đã thử nghiệm trên Node 22/24, chạy được trên macOS, Linux và Windows).
+Yêu cầu: **Node.js >= 20** (chạy đồng nhất trên macOS, Linux và Windows).
 
 ```bash
 npm ci
@@ -21,64 +21,53 @@ Sau lệnh thứ 3, mở trình duyệt tới `http://127.0.0.1:4173`.
 
 | Phím / Chuột | Hành động |
 |---|---|
-| `W A S D` hoặc Phím mũi tên | Di chuyển Mây theo hướng camera |
-| `Space` | Nhảy |
-| `E` hoặc `F` | Nạp đom đóm vào Đèn Lồng Lớn khi đứng gần |
-| `Shift`, `R` hoặc Chuột phải | Tỏa sáng (`pulse`) đẩy lùi và làm choáng Bóng Mực (tốn 1 đom đóm) |
-| Giữ Chuột trái + kéo, hoặc `Q` / `C` | Xoay camera quanh Mây |
+| `W A S D` hoặc Phím mũi tên | Di chuyển Mây theo hướng camera (`6.0 m/s`, tăng/dừng `<= 0.1s`, điều khiển trên không đầy đủ) |
+| `Space` | Nhảy (`7.0 m/s`, trọng lực `-20 m/s²`) |
+| `Shift` | **Lướt (`dash`)**: `14 m/s` trong `0.2s`, hồi chiêu `1.5s` (không hồi chiêu khi có Bùa Gió) |
+| `E` hoặc `F` | Nạp đom đóm vào Đèn Lồng Lớn trong bán kính `2.0m` (mỗi đèn cần `10` đom đóm) |
+| `R` hoặc Chuột phải | **Tỏa Sáng (`pulse`)**: tốn `3` đom đóm, bán kính `5m` 3D, đẩy lùi `4m` & choáng Bóng Mực `120` tick, xua/làm rơi đồ Gió Lạc |
+| Giữ Chuột trái + kéo, hoặc `Q` / `C` | Xoay camera quanh Mây (độ nhạy chỉnh trong Cài đặt, lưu `localStorage`) |
+| `Esc` hoặc `P` | Tạm dừng game (dừng hoàn toàn logic, mở menu Tiếp tục / Chơi lại / Cài đặt / Về menu) |
 
-## Cách tính điểm
+## Cách tính điểm (chuẩn hóa Contract v1.1)
 
-- Nhặt 1 đom đóm: **+10 điểm**
-- Thắp sáng 1 Đèn Lồng Lớn (đủ 3 đom đóm): **+100 điểm**
-- Làm choáng 1 Bóng Mực bằng tỏa sáng: **+25 điểm**
-- Thưởng khi thắng (thắp đủ 5 đèn): **+2 điểm / giây còn lại** và **+50 điểm / ngọn lửa (máu) còn lại**
+- Nạp 1 đom đóm vào Đèn Lồng Lớn: **+10 điểm**
+- Thắp sáng 1 Đèn Lồng Lớn (đủ 10 đom đóm): **+100 điểm**
+- Tỏa Sáng trúng 1 Bóng Mực: **+5 điểm** (mỗi con mỗi lần, kể cả đang choáng)
+- Thưởng khi thắng mỗi Đêm: **+`floor(giây còn lại) × 2` + `50 × Ngọn Lửa còn lại`**
+- Tổng điểm hành trình là tổng điểm của các Đêm đã thắng (hiện tại màn hình Bình Minh sau Đêm 3).
 
-## Chạy kiểm thử & Chế độ Headless (Test Contract v1.0)
+## Chạy kiểm thử & Chế độ Headless (Test Contract v1.1)
 
-Chạy toàn bộ unit test, scenario test và kiểm tra tính tất định:
+Chạy toàn bộ unit test, scenario headless cho 3 Đêm, kiểm tra tất định 3 Đêm và benchmark `21.600` ticks (`<= 30s`):
 
 ```bash
 npm run verify
 ```
 
-Chạy trực tiếp chế độ headless (60 tick/giây, không cửa sổ, đọc cấu hình từ `game.contract.json`):
+Chạy trực tiếp chế độ headless (60 tick/giây, không cửa sổ, hỗ trợ `--night 1 | 2 | 3`):
 
 ```bash
 node dist/cli/headless.js --seed 42 --night 1 --ticks 600 --out out.jsonl --snapshot-every 10
 ```
 
-Tùy chọn thêm: `--scenario <file.json>` và `--inputs <file.json>`. Nếu file `--inputs` hoặc `--scenario` sai định dạng, chương trình ghi lỗi ra `stderr` và thoát với mã `2`.
+Tùy chọn thêm: `--scenario <file.json>` và `--inputs <file.json>`. File sai định dạng thoát mã `2` và in lỗi ra `stderr`.
 
 ## Sáng tạo của tôi
 
-Ngoài phần lõi của PRD-0, bản Phase 1 bổ sung các chi tiết gọn nhẹ chỉ chạy ở lớp hiển thị Web 3D (`src/game/`) để **không làm thay đổi bất kỳ đầu ra headless nào**:
-1. **Nhân vật phụ — Ông Lái Đò & Bến thuyền (`src/game/creative.ts`):** Ở rìa nam của Đảo Bến có cầu cảng gỗ, chiếc thuyền nhỏ dập dềnh và Ông Lái Đò cầm đèn dầu; khi Mây đến gần sẽ hiện lời thoại hướng dẫn theo tiến độ thắp đèn.
-2. **Kẻ thù mới — Sương Giăng (`src/game/creative.ts`):** 2 cụm sương tím hồng tuần tra quanh vòng Đèn Lồng; chạm phải sẽ làm Mây chậm lại tạm thời (`1.6s`) và có thể bị xua tan tạm thời (`4s`) bằng kỹ năng Tỏa sáng (`pulse`).
-3. **Ánh sáng đảo chuyển sắc dần:** Khi số Đèn Lồng Lớn được thắp tăng từ 0/5 đến 5/5, sương đen mỏng dần và ánh sáng toàn đảo ấm dần lên.
-4. **Hiệu ứng sóng tỏa sáng & vòng an toàn:** Hiển thị vòng sáng vàng cam lan tỏa trên mặt đất khi dùng `pulse` và vòng ranh giới an toàn quanh các đèn đã thắp.
-5. **Âm thanh tổng hợp procedural (Web Audio API):** Tự tạo âm thanh nhẹ khi nhặt đom đóm, nạp đèn, thắp đèn, tỏa sáng và va chạm (không dùng file âm thanh ngoài, có nút Bật/Tắt trên HUD).
+Mọi yếu tố sáng tạo chạy hoàn toàn ở lớp hiển thị Web 3D (`src/game/creative.ts`, `src/game/festival.ts`, `src/game/memories.ts`) và **tắt hoàn toàn khi chạy headless**, đảm bảo không thay đổi bất kỳ số liệu chuẩn hay đầu ra Test Contract nào:
+
+1. **Đêm hội của những điều bị lãng quên:**
+   - **Tàn** — linh thú nhỏ đồng hành bay bên cạnh Mây, biết co người khi Bóng Mực đến gần và xoay vòng ăn mừng khi thắp đèn.
+   - **5 cảnh ký ức** (*Bến đợi, Sân chơi, Quán cũ, Vườn nhà, Đêm hội*) nở sáng tương ứng khi thắp từng Đèn Lồng.
+   - **Đèn Lạc** tinh nghịch bỏ chạy khi Mây lại gần và phản ứng khi gặp Tỏa Sáng; **Cá Voi Mây** bay ngang trời khi thắp đủ 3 đèn; **chiếc thuyền hành khách rời bến** khi hoàn thành Đêm 1.
+2. **Nhân vật phụ Ông Lái Đò & Kẻ thù trang trí Sương Giăng (Đêm 1):** Cầu cảng gỗ, thuyền dập dềnh, thoại Ông Lái Đò theo tiến độ, và Sương Giăng mang mặt nạ sứ với dải lụa tím.
+3. **Âm thanh procedural Web Audio API:** Nhạc nền đêm ngũ cung nhẹ nhàng + đầy đủ 10 hiệu ứng âm thanh chuẩn Ticket-02 + âm thanh cốt truyện (không dùng file nhạc bản quyền ngoài).
 
 ## Tài liệu & Bằng chứng SDLC
 
-### Bản sáng tạo — Đêm hội của những điều bị lãng quên
-
-`src/game/creative.ts` điều phối hai module mới `festival.ts` và `memories.ts`:
-
-- **Tàn:** linh vật giấy với hai tai lệch, bay theo Mây, thu nhỏ khi Bóng Mực ở gần và xoay mừng khi thắp đèn.
-- **Năm ký ức:** thuyền giấy, trẻ rước đèn, bàn trà, vườn hoa và sân hội hiện dần ở phía ngoài từng đèn được thắp.
-- **Sương Giăng:** thêm mặt nạ sứ, đuôi lụa và vòng báo hiệu dưới đất; rung nhẹ khi Mây đến gần.
-- **Đèn Lạc:** chiếc đèn xanh có chân bỏ chạy khi đến gần; Tỏa sáng làm nó thu nhỏ và hiện lời thoại, không gây sát thương hoặc thay đổi điểm.
-- **Cá Voi Mây:** bay ngang phía trước camera trong 12 giây sau khi thắp đèn thứ ba, có đèn trên lưng và bóng dưới đất. Người chơi vẫn điều khiển bình thường.
-- **Chuyến đò cuối:** khi thắng, camera theo thuyền và những hành khách mờ trong khoảng 11 giây trước khi hiện bảng điểm. Nút Chơi lại vẫn dùng được.
-- **Đom đóm:** ba bảng màu và hình dáng; âm nhặt chạy qua năm nốt nhạc. Các sự kiện ký ức có âm thanh tổng hợp riêng, dùng chung nút Bật/Tắt.
-
-Đây là bản hình khối đầu tiên. Các chi tiết nâng cao trong ý tưởng như Tàn đậu trên nón, dấu chân Đèn Lạc, hoa bung khi xua sương, hơi trà chuyển động và chuỗi đèn nối toàn đảo chưa được triển khai. Không thay đổi `src/core/` hoặc `game.contract.json`.
-
-Kiểm tra bản sáng tạo: [docs/proof/phase-2.md](docs/proof/phase-2.md).
-
-- Khai báo contract: [game.contract.json](game.contract.json)
-- Giả định & tiêu chí nghiệm thu: [docs/notes/spec-assumptions.md](docs/notes/spec-assumptions.md)
+- Khai báo contract v1.1: [game.contract.json](game.contract.json)
+- Spec & Acceptance Criteria: [docs/notes/spec-assumptions.md](docs/notes/spec-assumptions.md), [docs/notes/spec-phase2.md](docs/notes/spec-phase2.md)
 - Nhật ký dùng AI & token: [docs/notes/ai-log.md](docs/notes/ai-log.md)
-- Bằng chứng Phase 1: [docs/proof/phase-1.md](docs/proof/phase-1.md)
+- Bằng chứng từng phase: [docs/proof/phase-1.md](docs/proof/phase-1.md), [docs/proof/phase-2.md](docs/proof/phase-2.md)
 - Harness AI: [AGENTS.md](AGENTS.md), [.agents/skills/verify-phase/SKILL.md](.agents/skills/verify-phase/SKILL.md), [.github/workflows/ci.yml](.github/workflows/ci.yml)

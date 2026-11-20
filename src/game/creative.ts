@@ -198,6 +198,9 @@ export class CreativeWorld {
 
   update(snapshot: GameStateSnapshot, dt: number, camYawDeg = 0): CreativeHudState {
     this.animTime += dt;
+    const isNight1 = snapshot.night === 1;
+    this.npcGroup.visible = isNight1;
+    this.boatGroup.visible = isNight1;
     this.boatGroup.position.y = -0.35 + Math.sin(this.animTime * 1.6) * 0.16;
     this.boatGroup.rotation.z = Math.sin(this.animTime * 1.2) * 0.04;
 
@@ -207,9 +210,9 @@ export class CreativeWorld {
     const litCount = snapshot.lanterns.filter((l) => l.lit).length;
     const allLit = litCount >= snapshot.lanterns.length;
 
-    // Update Sương Giăng wisps patrolling the lantern ring
+    // Update Sương Giăng wisps patrolling the lantern ring (Night 1 decorative threat)
     for (const wisp of this.wisps) {
-      if (allLit || snapshot.state !== "playing") {
+      if (!isNight1 || allLit || snapshot.state !== "playing") {
         wisp.group.visible = false;
         continue;
       }
@@ -238,9 +241,9 @@ export class CreativeWorld {
       }
     }
 
-    // NPC dialogue when player stands near Ông Lái Đò
+    // NPC dialogue when player stands near Ông Lái Đò (Night 1)
     let npcDialogue: string | null = null;
-    if (distXZ(snapshot.player.pos, this.npcPos) <= 4.5) {
+    if (isNight1 && distXZ(snapshot.player.pos, this.npcPos) <= 4.5) {
       if (litCount === 0) {
         npcDialogue =
           "Ông Lái Đò: \"Đèn tắt lâu quá, đường về cũng quên mất lối. Gom đom đóm thắp đèn giúp ông nhé.\"";

@@ -1,17 +1,22 @@
-# Nhật ký dùng AI — Phase 1
+# Nhật ký dùng AI
 
-## 1. Chiến lược & Tiết kiệm Token
-- **Cách chia việc:** Yêu cầu AI dựng kiến trúc tách `src/core/` (thuần TypeScript, không phụ thuộc Three.js/DOM) trước, viết test hợp đồng (`tests/unit/`, `tests/scenarios/`) rồi mới dựng lớp hiển thị 3D (`src/game/`).
-- **Cách tiết kiệm token:**
-  - Chọn đồ họa **procedural 3D** bằng Three.js thay vì nạp model/asset nặng.
-  - Giữ `AGENTS.md` ngắn gọn (~25 dòng) chỉ chứa lệnh chạy và ranh giới kiến trúc.
-  - Gom toàn bộ bước kiểm tra vào 1 lệnh `npm run verify` để AI kiểm chứng nhanh thay vì chạy từng lệnh rời rạc nhiều vòng.
-- **Ước tính token Phase 1:** Khoảng ~45k–60k tokens (bao gồm đọc tài liệu lab, phân tích Test Contract v1.0, sinh code core/CLI/3D/tests và chạy kiểm chứng).
+## Phase 1 (PRD-0 / Contract v1.0)
+- **Chiến lược:** Tách `src/core/` thuần TypeScript khỏi `src/game/` (Three.js/Web) ngay từ đầu, viết `npm run verify` làm cổng kiểm chứng tự động.
+- **Lỗi AI phát hiện & khắc phục:**
+  1. `scripts/verify.mjs` gọi `process.execPath` với `shell: true` trên Windows gây lỗi tách đường dẫn tại khoảng trắng → sửa chỉ bật `shell: true` cho lệnh `npm` trên Windows.
+  2. Kiểm tra toán học ma trận `rotateMoveByYaw` so với camera Three.js để phím `WASD` đúng hướng nhìn.
+- **Ước tính token Phase 1:** ~50k tokens.
 
-## 2. Những lần AI gặp lỗi / điểm đã sửa trong Phase 1
-1. **Lỗi tương thích lệnh trên Windows trong `scripts/verify.mjs`:** Khi gọi `spawnSync(process.execPath, ...)` với `shell: true`, đường dẫn `C:\Program Files\nodejs\node.exe` bị tách tại khoảng trắng. **Cách sửa:** chỉ bật `shell: true` khi gọi `npm` trên Windows (`cmd === "npm" && process.platform === "win32"`), giữ `shell: false` cho `process.execPath`.
-2. **Định hướng camera và phím `WASD`:** Kiểm tra toán học ma trận xoay `rotateMoveByYaw` so với vị trí camera Three.js để đảm bảo `W` luôn tiến về phía trước màn hình và `A/D` khớp trái/phải theo góc nhìn.
+---
 
-## 3. Cập nhật Harness
-- Tạo [AGENTS.md](../../AGENTS.md) với quy tắc cấm `src/core/` import `three`/DOM và bắt buộc `src/core/tuning.ts` khớp `game.contract.json`.
-- Tạo skill [.agents/skills/verify-phase/SKILL.md](../../.agents/skills/verify-phase/SKILL.md) và CI workflow [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
+## Phase 2 (TICKET-02 — "Ba hòn đảo" / Contract v1.1)
+- **Chiến lược & Tiết kiệm Token:**
+  - Cập nhật `AGENTS.md`, `game.contract.json` (`v1.1`) và viết `docs/notes/spec-phase2.md` trước khi sửa code để khóa chặt 12 bước/tick và bảng hằng số chuẩn.
+  - Tách riêng `src/core/maps.ts` chứa hình học và truy vấn địa hình 3 Đêm để dùng chung cho cả simulation và renderer, tránh trùng lặp logic.
+  - Chạy `npm run verify` ngay sau khi xong `src/core/` & `src/cli/` (18/18 tests pass ngay lần đầu) rồi mới nâng cấp Web 3D.
+- **Lỗi phát hiện & cách sửa nhờ kiểm chứng thật:**
+  1. **Kiểm tra quy ước góc XZ:** Đối chiếu tọa độ đèn Đêm 1 và tầng 1 Đêm 3 (`z > 0` tại góc `20°..160°`) để xác nhận công thức `x = r·cos(θ), z = r·sin(θ)`, tránh sai dấu trục Z.
+  2. **Kiểm tra trực quan trên trình duyệt (`1280×720`):** Phát hiện mũi tên chỉ hướng đèn ngoài màn hình (`▲`) bị chồng lên đồng hồ đếm ngược trên giữa, và điểm spawn Đêm 3 `(0,0,-12)` đứng hơi sát vách tầng 2 → sửa biên `py >= 108px`, lùi điểm spawn Đêm 3 ra `(0,0,-24)` và thêm hiển thị `FPS` trực tiếp trên HUD.
+  3. **Benchmark `21.600` ticks:** Lần đầu benchmark Đêm 3 dừng ở tick `11.134` do người chơi đứng yên bị Bóng Mực đánh thua → bổ sung scenario `random_shades: false` trong `scripts/verify.mjs` để chạy trọn vẹn đủ `21.600` ticks thật sự (`0.121s <= 30s`).
+- **Cập nhật Harness:** Nâng cấp `AGENTS.md` (thêm quy tắc 12 bước/tick, trạng thái Bóng Mực chuẩn, điểm khi nạp đèn) và skill `.agents/skills/verify-phase/SKILL.md` (bổ sung check 3 Đêm & benchmark `21.600` ticks).
+- **Ước tính token Phase 2:** ~75k tokens.
