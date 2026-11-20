@@ -2,7 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { GameEngine } from "../core/engine.js";
-import type { InputFile, InputFrame, ScenarioConfig, TuningConfig } from "../core/types.js";
+import type {
+  InputFile,
+  InputFrame,
+  NightNumber,
+  ScenarioConfig,
+  TuningConfig
+} from "../core/types.js";
 import {
   ContractValidationError,
   validateInputFile,
@@ -11,7 +17,7 @@ import {
 
 interface CliArgs {
   seed: number;
-  night: number;
+  night: NightNumber;
   scenarioPath?: string;
   inputsPath?: string;
   ticks: number;
@@ -48,14 +54,14 @@ function parseArgs(argv: string[]): CliArgs {
 
   if (!seedRaw || !nightRaw || !ticksRaw || !outPath) {
     throw new Error(
-      "Usage: --seed <int> --night 1 [--scenario <file>] [--inputs <file>] --ticks <int> --out <file.jsonl> [--snapshot-every <int>]"
+      "Usage: --seed <int> --night <1|2|3> [--scenario <file>] [--inputs <file>] --ticks <int> --out <file.jsonl> [--snapshot-every <int>]"
     );
   }
 
   const seed = parseIntStrict(seedRaw, "--seed");
-  const night = parseIntStrict(nightRaw, "--night");
-  if (night !== 1) {
-    throw new Error(`Unsupported --night ${night}; Phase 1 supports --night 1`);
+  const nightNum = parseIntStrict(nightRaw, "--night");
+  if (nightNum !== 1 && nightNum !== 2 && nightNum !== 3) {
+    throw new Error(`Unsupported --night ${nightNum}; Contract v1.1 supports --night 1, 2, or 3`);
   }
 
   const ticks = parseIntStrict(ticksRaw, "--ticks");
@@ -72,7 +78,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   return {
     seed,
-    night,
+    night: nightNum,
     scenarioPath: map.get("--scenario"),
     inputsPath: map.get("--inputs"),
     ticks,
@@ -86,12 +92,16 @@ function loadJsonFile(filePath: string, label: string): unknown {
   try {
     text = fs.readFileSync(filePath, "utf8");
   } catch (err) {
-    throw new ContractValidationError(`Cannot read ${label} file '${filePath}': ${(err as Error).message}`);
+    throw new ContractValidationError(
+      `Cannot read ${label} file '${filePath}': ${(err as Error).message}`
+    );
   }
   try {
     return JSON.parse(text);
   } catch (err) {
-    throw new ContractValidationError(`Invalid JSON in ${label} file '${filePath}': ${(err as Error).message}`);
+    throw new ContractValidationError(
+      `Invalid JSON in ${label} file '${filePath}': ${(err as Error).message}`
+    );
   }
 }
 
@@ -153,8 +163,9 @@ function main(): void {
     }
 
     const lines: string[] = [];
-    // Snapshot tick 0: after scenario setup, before applying tick 0 input
+    // Snapshot tick 0: state after scenario setup, before tick 0 input
     lines.push(JSON.stringify(engine.getSnapshotRecord()));
+    lines.push(JSON.stringify(engine.getNightStartEvent()));
 
     for (let k = 0; k < args.ticks; k++) {
       if (engine.isFinished()) {
