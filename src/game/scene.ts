@@ -2,32 +2,30 @@ import * as THREE from "three";
 import { getNightMap } from "../core/maps.js";
 import type { GameStateSnapshot, NightNumber, TuningConfig, Vec3 } from "../core/types.js";
 import { IslandDecor } from "./decor.js";
-
-// Standard Ticket-02 color palette
-const PALETTE = {
-  sky: 0x0e1430,
-  fog: 0x1b2350,
-  grass: 0x2f5d50,
-  sand: 0xc9b48a,
-  wood: 0x6b4a2f,
-  cloudSea: 0x12384a,
-  lanternLit: 0xffb347,
-  lanternCore: 0xffe9b0,
-  lanternOff: 0x5b5f6e,
-  moteCore: 0xfff6c2,
-  moteHalo: 0xffe58a,
-  shadeBody: 0x120a1a,
-  shadeEdge: 0x7a3cff,
-  shadeStunned: 0x3a3450,
-  playerCloak: 0xe8e2d0,
-  playerScarf: 0xc8102e,
-  goldAccent: 0xf2c14e,
-  drifter: 0x8fa3b8
-};
+import {
+  ShadeFactory,
+  animateCharmRig,
+  animateDrifterRig,
+  animateMoteRig,
+  animatePlayerRig,
+  buildBellTower,
+  buildCharmRig,
+  buildDrifterRig,
+  buildJumpPadRig,
+  buildLanternStructure,
+  buildMoteRig,
+  buildPlayerRig,
+  lerpAngle,
+  type CharmRig,
+  type DrifterRig,
+  type PlayerRig,
+  type ShadeRig
+} from "./models.js";
+import { PALETTE } from "./palette.js";
 
 interface LanternVisual {
   group: THREE.Group;
-  orbMesh: THREE.Mesh;
+  orbMesh: THREE.Object3D;
   orbMat: THREE.MeshStandardMaterial;
   tearGroup: THREE.Group;
   fuelBarGroup: THREE.Group;
@@ -60,7 +58,7 @@ export class IslandSceneView {
   private readonly decor = new IslandDecor();
   private readonly playerGroup: THREE.Group;
   private readonly playerLanternLight: THREE.PointLight;
-  private readonly playerHatLantern: THREE.Mesh;
+  private readonly playerRig: PlayerRig;
 
   private readonly lanternVisuals = new Map<string, LanternVisual>();
   private readonly moteMeshes = new Map<string, THREE.Group>();
@@ -71,55 +69,8 @@ export class IslandSceneView {
   private readonly cloudMeshes: THREE.Mesh[] = [];
   private readonly windLeaves: THREE.Mesh[] = [];
 
-  private readonly moteCoreGeom = new THREE.SphereGeometry(0.24, 10, 10);
-  private readonly moteHaloGeom = new THREE.SphereGeometry(0.42, 10, 10);
-  private readonly moteCoreMat = new THREE.MeshStandardMaterial({
-    color: PALETTE.moteCore,
-    emissive: PALETTE.moteCore,
-    emissiveIntensity: 2.0,
-    roughness: 0.2
-  });
-  private readonly moteHaloMat = new THREE.MeshBasicMaterial({
-    color: PALETTE.moteHalo,
-    transparent: true,
-    opacity: 0.35
-  });
-
-  // Shared geometries & materials for shades (fast even with 200 shades in bench mode)
-  private readonly shadeBodyGeo = new THREE.SphereGeometry(0.65, 10, 10);
-  private readonly shadeEyeGeo = new THREE.SphereGeometry(0.11, 6, 6);
-  private readonly shadeMatNormal = new THREE.MeshStandardMaterial({
-    color: PALETTE.shadeBody,
-    emissive: PALETTE.shadeEdge,
-    emissiveIntensity: 0.85,
-    roughness: 0.55
-  });
-  private readonly shadeMatColorblind = new THREE.MeshStandardMaterial({
-    color: PALETTE.shadeBody,
-    emissive: 0x00b3ff,
-    emissiveIntensity: 0.9,
-    roughness: 0.55
-  });
-  private readonly shadeMatDrain = new THREE.MeshStandardMaterial({
-    color: PALETTE.shadeBody,
-    emissive: PALETTE.shadeEdge,
-    emissiveIntensity: 1.4,
-    roughness: 0.45
-  });
-  private readonly shadeMatDrainCB = new THREE.MeshStandardMaterial({
-    color: PALETTE.shadeBody,
-    emissive: 0x00b3ff,
-    emissiveIntensity: 1.4,
-    roughness: 0.45
-  });
-  private readonly shadeMatStunned = new THREE.MeshStandardMaterial({
-    color: PALETTE.shadeStunned,
-    emissive: PALETTE.shadeStunned,
-    emissiveIntensity: 0.7,
-    roughness: 0.6
-  });
-  private readonly shadeEyeMatNormal = new THREE.MeshBasicMaterial({ color: PALETTE.shadeEdge });
-  private readonly shadeEyeMatCB = new THREE.MeshBasicMaterial({ color: 0x00b3ff });
+  private readonly shadeFactory = new ShadeFactory();
+  private readonly padPulseRings: THREE.Mesh[] = [];
 
   private currentNight: NightNumber = 1;
   private animTime = 0;
@@ -199,10 +150,10 @@ export class IslandSceneView {
     this.buildWindLeaves();
     this.loadNight(1);
 
-    const { group, hatLantern, lanternLight } = this.buildPlayerMesh();
-    this.playerGroup = group;
-    this.playerHatLantern = hatLantern;
-    this.playerLanternLight = lanternLight;
+    const playerRig = buildPlayerRig();
+    this.playerRig = playerRig;
+    this.playerGroup = playerRig.group;
+    this.playerLanternLight = playerRig.lanternLight;
     this.scene.add(this.playerGroup);
 
     window.addEventListener("resize", this.handleResize);
@@ -300,6 +251,7 @@ export class IslandSceneView {
     while (this.mapGroup.children.length > 0) {
       this.mapGroup.remove(this.mapGroup.children[0]);
     }
+    this.padPulseRings.length = 0;
 
     const grassMat = new THREE.MeshStandardMaterial({ color: PALETTE.grass, roughness: 0.9 });
     const sandMat = new THREE.MeshStandardMaterial({ color: PALETTE.sand, roughness: 0.88 });
@@ -371,36 +323,17 @@ export class IslandSceneView {
         this.mapGroup.add(ramp);
       }
 
-      // Bell Tower at center of Tier 2: cylinder R=2m, height 8m (Y=6..14)
-      const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 8.0, 20), woodMat);
-      tower.position.set(0, 10, 0);
-      tower.castShadow = true;
-      this.mapGroup.add(tower);
-
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(3.2, 2.4, 12), sandMat);
-      roof.position.set(0, 15.1, 0);
-      this.mapGroup.add(roof);
-
-      const bell = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.45, 0.75, 1.1, 12),
-        new THREE.MeshStandardMaterial({
-          color: PALETTE.goldAccent,
-          emissive: PALETTE.lanternLit,
-          emissiveIntensity: 0.4,
-          metalness: 0.5,
-          roughness: 0.3
-        })
-      );
-      bell.position.set(0, 12.6, 0);
-      this.mapGroup.add(bell);
+      // Bell Tower at center of Tier 2 (footprint <= 2.0 m, matches core collision)
+      this.mapGroup.add(buildBellTower());
     }
 
-    // Jump pads for this night
+    // Jump pads for this night (disc + glowing rim + launch-direction arrows)
     const mapDef = getNightMap(night);
     for (const pad of mapDef.jumpPads) {
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(pad.radius, pad.radius * 1.1, 0.25, 20), padMat);
-      disc.position.set(pad.pos[0], pad.pos[1] + 0.12, pad.pos[2]);
-      this.mapGroup.add(disc);
+      const padRig = buildJumpPadRig(pad.radius, pad.velXZ);
+      padRig.group.position.set(pad.pos[0], pad.pos[1] + 0.12, pad.pos[2]);
+      this.mapGroup.add(padRig.group);
+      this.padPulseRings.push(padRig.pulse);
     }
 
     // Build stylized nature decor (hidden automatically in benchmark mode)
@@ -408,109 +341,16 @@ export class IslandSceneView {
     this.decor.group.visible = !this.benchMode;
   }
 
-  private buildPlayerMesh(): {
-    group: THREE.Group;
-    hatLantern: THREE.Mesh;
-    lanternLight: THREE.PointLight;
-  } {
-    const group = new THREE.Group();
-
-    // Cloak (#E8E2D0)
-    const body = new THREE.Mesh(
-      new THREE.ConeGeometry(0.45, 1.1, 12),
-      new THREE.MeshStandardMaterial({ color: PALETTE.playerCloak, roughness: 0.75 })
-    );
-    body.position.y = 0.65;
-    body.castShadow = true;
-    group.add(body);
-
-    // Scarf (#C8102E)
-    const scarf = new THREE.Mesh(
-      new THREE.TorusGeometry(0.28, 0.08, 8, 16),
-      new THREE.MeshStandardMaterial({ color: PALETTE.playerScarf, roughness: 0.6 })
-    );
-    scarf.rotation.x = Math.PI / 2;
-    scarf.position.y = 1.16;
-    group.add(scarf);
-
-    // Head
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.27, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0xfde2c4, roughness: 0.65 })
-    );
-    head.position.y = 1.36;
-    head.castShadow = true;
-    group.add(head);
-
-    // Conical hat (Nón lá)
-    const hat = new THREE.Mesh(
-      new THREE.ConeGeometry(0.65, 0.34, 16),
-      new THREE.MeshStandardMaterial({ color: PALETTE.sand, roughness: 0.8 })
-    );
-    hat.position.y = 1.64;
-    hat.castShadow = true;
-    group.add(hat);
-
-    // Hanging small lantern
-    const hatLantern = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 10, 10),
-      new THREE.MeshStandardMaterial({
-        color: PALETTE.lanternCore,
-        emissive: PALETTE.lanternLit,
-        emissiveIntensity: 2.0
-      })
-    );
-    hatLantern.position.set(0, 1.4, 0.56);
-    group.add(hatLantern);
-
-    const lanternLight = new THREE.PointLight(PALETTE.lanternLit, 2.4, 11);
-    lanternLight.position.set(0, 1.5, 0.6);
-    group.add(lanternLight);
-
-    return { group, hatLantern, lanternLight };
-  }
-
   private createLanternVisual(id: string, pos: Vec3): LanternVisual {
     const group = new THREE.Group();
     group.position.set(pos[0], pos[1], pos[2]);
 
-    const base = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.75, 0.95, 0.4, 12),
-      new THREE.MeshStandardMaterial({ color: PALETTE.lanternOff, roughness: 0.85 })
-    );
-    base.position.y = 0.2;
-    base.castShadow = true;
-    group.add(base);
-
-    const post = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.22, 2.5, 10),
-      new THREE.MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.85 })
-    );
-    post.position.y = 1.45;
-    post.castShadow = true;
-    group.add(post);
-
-    const orbMat = new THREE.MeshStandardMaterial({
-      color: PALETTE.lanternOff,
-      emissive: PALETTE.lanternOff,
-      emissiveIntensity: 0.35,
-      roughness: 0.35
-    });
-    const orbMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 1), orbMat);
-    orbMesh.position.y = 3.0;
-    group.add(orbMesh);
-
-    // Non-color distinction for unlit lantern: paper tear/crack marks (visible when unlit)
-    const tearGroup = new THREE.Group();
-    const tearMat = new THREE.MeshBasicMaterial({ color: 0x120a1a });
-    const tear1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.58, 0.62), tearMat);
-    tear1.position.set(0.18, 3.0, 0);
-    tear1.rotation.z = 0.35;
-    const tear2 = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.1, 0.12), tearMat);
-    tear2.position.set(0, 2.92, 0.22);
-    tear2.rotation.z = -0.25;
-    tearGroup.add(tear1, tear2);
-    group.add(tearGroup);
+    const structure = buildLanternStructure();
+    group.add(structure.staticGroup);
+    group.add(structure.body);
+    const orbMesh = structure.body;
+    const orbMat = structure.orbMat;
+    const tearGroup = structure.tearGroup;
 
     // Fuel bar floating above lit lantern
     const fuelBarGroup = new THREE.Group();
@@ -565,75 +405,27 @@ export class IslandSceneView {
   }
 
   private createShadeGroup(id: string): THREE.Group {
-    const group = new THREE.Group();
-
-    const body = new THREE.Mesh(this.shadeBodyGeo, this.shadeMatNormal);
-    body.scale.set(1, 1.35, 1);
-    body.position.y = 0.95;
-    body.castShadow = !this.benchMode;
-    body.name = "body";
-    group.add(body);
-
-    const leftEye = new THREE.Mesh(this.shadeEyeGeo, this.shadeEyeMatNormal);
-    leftEye.position.set(-0.2, 1.12, 0.52);
-    leftEye.name = "eyeL";
-    const rightEye = new THREE.Mesh(this.shadeEyeGeo, this.shadeEyeMatNormal);
-    rightEye.position.set(0.2, 1.12, 0.52);
-    rightEye.name = "eyeR";
-    group.add(leftEye, rightEye);
-
-    this.scene.add(group);
-    this.shadeGroups.set(id, group);
-    return group;
+    const rig = this.shadeFactory.build(!this.benchMode);
+    rig.group.userData.rig = rig;
+    this.scene.add(rig.group);
+    this.shadeGroups.set(id, rig.group);
+    return rig.group;
   }
 
   private createDrifterGroup(id: string): THREE.Group {
-    const group = new THREE.Group();
-    const ribbonMat = new THREE.MeshStandardMaterial({
-      color: PALETTE.drifter,
-      emissive: PALETTE.drifter,
-      emissiveIntensity: 0.55,
-      transparent: true,
-      opacity: 0.85,
-      side: THREE.DoubleSide
-    });
-    const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.12, 2.2), ribbonMat);
-    ribbon.position.y = 1.4;
-    group.add(ribbon);
-
-    const crest = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 6), ribbonMat);
-    crest.rotation.x = Math.PI / 2;
-    crest.position.set(0, 1.4, 0.9);
-    group.add(crest);
-
-    this.scene.add(group);
-    this.drifterGroups.set(id, group);
-    return group;
+    const rig = buildDrifterRig();
+    rig.group.userData.rig = rig;
+    this.scene.add(rig.group);
+    this.drifterGroups.set(id, rig.group);
+    return rig.group;
   }
 
   private createCharmGroup(id: string): THREE.Group {
-    const group = new THREE.Group();
-    const talisman = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.85, 0.08),
-      new THREE.MeshStandardMaterial({
-        color: PALETTE.playerScarf,
-        emissive: PALETTE.playerScarf,
-        emissiveIntensity: 0.6
-      })
-    );
-    talisman.position.y = 1.05;
-    group.add(talisman);
-
-    const border = new THREE.Mesh(
-      new THREE.BoxGeometry(0.54, 0.94, 0.05),
-      new THREE.MeshBasicMaterial({ color: PALETTE.goldAccent })
-    );
-    border.position.y = 1.05;
-    group.add(border);
-
-    this.scene.add(group);
-    this.charmGroups.set(id, group);
-    return group;
+    const rig = buildCharmRig();
+    rig.group.userData.rig = rig;
+    this.scene.add(rig.group);
+    this.charmGroups.set(id, rig.group);
+    return rig.group;
   }
 
   spawnPulseWave(pos: Vec3): void {
@@ -680,7 +472,13 @@ export class IslandSceneView {
     this.playerGroup.visible = snapshot.player.respawnTimer <= 0;
     this.playerGroup.position.set(snapshot.player.pos[0], snapshot.player.pos[1], snapshot.player.pos[2]);
     this.playerGroup.rotation.y = Math.atan2(snapshot.player.facing[0], snapshot.player.facing[1]);
-    this.playerHatLantern.position.x = this.reducedMotion ? 0 : Math.sin(this.animTime * 4) * 0.05;
+    animatePlayerRig(
+      this.playerRig,
+      this.animTime,
+      dt,
+      { vx: snapshot.player.vel[0], vz: snapshot.player.vel[2], grounded: snapshot.player.grounded },
+      this.reducedMotion
+    );
     this.playerLanternLight.intensity =
       snapshot.player.invulnTimer > 0 && !this.reducedMotion
         ? Math.sin(this.animTime * 28) > 0
@@ -752,12 +550,11 @@ export class IslandSceneView {
       activeMoteIds.add(mote.id);
       let group = this.moteMeshes.get(mote.id);
       if (!group) {
-        group = new THREE.Group();
-        group.add(new THREE.Mesh(this.moteCoreGeom, this.moteCoreMat));
-        group.add(new THREE.Mesh(this.moteHaloGeom, this.moteHaloMat));
+        group = buildMoteRig();
         this.scene.add(group);
         this.moteMeshes.set(mote.id, group);
       }
+      animateMoteRig(group, this.animTime, i, this.reducedMotion);
       const bob = Math.sin(this.animTime * 3.5 + i * 0.9) * 0.16;
       group.position.set(mote.pos[0], mote.pos[1] + 0.8 + bob, mote.pos[2]);
     }
@@ -783,22 +580,14 @@ export class IslandSceneView {
       } else if (dx * dx + dz * dz > 1e-4) {
         group.rotation.y = Math.atan2(dx, dz);
       }
-      group.scale.setScalar(shade.state === "spawning" ? 0.65 : 1.0);
-      const body = group.getObjectByName("body") as THREE.Mesh | undefined;
-      if (body) {
-        if (shade.state === "stunned") {
-          body.material = this.shadeMatStunned;
-        } else if (shade.state === "drain") {
-          body.material = this.colorblind ? this.shadeMatDrainCB : this.shadeMatDrain;
-        } else {
-          body.material = this.colorblind ? this.shadeMatColorblind : this.shadeMatNormal;
-        }
-      }
-      const eyeMat = this.colorblind ? this.shadeEyeMatCB : this.shadeEyeMatNormal;
-      for (const eyeName of ["eyeL", "eyeR"]) {
-        const eye = group.getObjectByName(eyeName) as THREE.Mesh | undefined;
-        if (eye) eye.material = eyeMat;
-      }
+      this.shadeFactory.applyState(
+        group.userData.rig as ShadeRig,
+        shade.state,
+        this.colorblind,
+        this.animTime,
+        this.reducedMotion,
+        Number.parseInt(shade.id.slice(1), 10) || 0
+      );
     }
     for (const [id, group] of this.shadeGroups.entries()) {
       if (!activeShadeIds.has(id)) {
@@ -815,13 +604,21 @@ export class IslandSceneView {
       if (!group) group = this.createDrifterGroup(drifter.id);
       group.position.set(
         drifter.pos[0],
-        drifter.pos[1] + Math.sin(this.animTime * 5) * 0.2,
+        drifter.pos[1] + (this.reducedMotion ? 0 : Math.sin(this.animTime * 5) * 0.2),
         drifter.pos[2]
       );
-      group.rotation.y = Math.atan2(
-        snapshot.player.pos[0] - drifter.pos[0],
-        snapshot.player.pos[2] - drifter.pos[2]
-      );
+      const prev = group.userData.prev as { x: number; z: number; heading: number } | undefined;
+      let heading =
+        prev?.heading ??
+        Math.atan2(snapshot.player.pos[0] - drifter.pos[0], snapshot.player.pos[2] - drifter.pos[2]);
+      if (prev) {
+        const mx = drifter.pos[0] - prev.x;
+        const mz = drifter.pos[2] - prev.z;
+        if (mx * mx + mz * mz > 1e-6) heading = Math.atan2(mx, mz);
+      }
+      group.userData.prev = { x: drifter.pos[0], z: drifter.pos[2], heading };
+      group.rotation.y = lerpAngle(group.rotation.y, heading, 0.2);
+      animateDrifterRig(group.userData.rig as DrifterRig, this.animTime, this.reducedMotion);
     }
     for (const [id, group] of this.drifterGroups.entries()) {
       if (!activeDrifterIds.has(id)) {
@@ -839,11 +636,26 @@ export class IslandSceneView {
       group.visible = charm.available;
       group.position.set(charm.pos[0], charm.pos[1] + Math.sin(this.animTime * 3) * 0.15, charm.pos[2]);
       group.rotation.y += dt * 1.8;
+      animateCharmRig(group.userData.rig as CharmRig, this.animTime, this.reducedMotion);
     }
     for (const [id, group] of this.charmGroups.entries()) {
       if (!activeCharmIds.has(id)) {
         this.scene.remove(group);
         this.charmGroups.delete(id);
+      }
+    }
+
+    // 8b. Jump pad pulse rings
+    for (let i = 0; i < this.padPulseRings.length; i++) {
+      const ring = this.padPulseRings[i];
+      const ringMat = ring.material as THREE.MeshBasicMaterial;
+      if (this.reducedMotion) {
+        ring.scale.setScalar(1);
+        ringMat.opacity = 0.35;
+      } else {
+        const k = (this.animTime * 0.8 + i * 0.37) % 1;
+        ring.scale.setScalar(0.7 + k * 0.5);
+        ringMat.opacity = (1 - k) * 0.5;
       }
     }
 

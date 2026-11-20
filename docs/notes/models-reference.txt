@@ -1,0 +1,125 @@
+================================================================================
+DANH SÁCH NHÂN VẬT, SINH VẬT VÀ SỰ VẬT 3D — GAME "ĐẢO ĐÈN LỒNG"
+(Tài liệu tham khảo kích thước, bảng màu chuẩn & vị trí code để nâng cấp model)
+================================================================================
+
+QUY ƯỚC CHUNG:
+- Đơn vị: mét (m), trục Y hướng lên, mặt đất đảo chính ở Y = 0.
+- Bảng màu chuẩn (sai lệch tối đa ±10% mỗi kênh RGB):
+  + Trời đêm / Sương mù : #0E1430 / #1B2350
+  + Cỏ / Cát / Gỗ / Biển mây : #2F5D50 / #C9B48A / #6B4A2F / #12384A
+  + Đèn sáng / Lõi đèn / Đèn tắt : #FFB347 / #FFE9B0 / #5B5F6E
+  + Đom đóm (lõi / quầng) : #FFF6C2 / #FFE58A
+  + Bóng Mực (thân / viền & mắt / choáng) : #120A1A / #7A3CFF / #3A3450
+  + Chế độ mù màu Bóng Mực (viền & mắt) : #00B3FF
+  + Áo Mây / Khăn Mây & Bùa Gió : #E8E2D0 / #C8102E
+  + Điểm nhấn vàng / Gió Lạc : #F2C14E / #8FA3B8
+
+--------------------------------------------------------------------------------
+I. NHÂN VẬT CHÍNH & ĐỒNG HÀNH
+--------------------------------------------------------------------------------
+1. Mây (Nhân vật chính — người chơi điều khiển)
+   - Vị trí code: src/game/scene.ts -> buildPlayerMesh()
+   - Kích thước hiện tại: cao ~1.8m, bán kính thân ~0.45m, mặt hướng +Z.
+   - Các bộ phận:
+     + Áo choàng (#E8E2D0)
+     + Khăn quàng cổ (#C8102E)
+     + Đầu & khuôn mặt
+     + Nón lá (#C9B48A)
+     + Đèn lồng nhỏ treo vành nón phía trước (#FFE9B0 / phát sáng #FFB347)
+   - Trạng thái cần thể hiện: đứng yên, chạy, nhảy, lướt (dash), bất tử (nhấp nháy), cầm đom đóm (đèn sáng hơn).
+
+2. Tàn (Linh thú đồng hành bay theo Mây — Sáng tạo)
+   - Vị trí code: src/game/festival.ts
+   - Kích thước hiện tại: cao ~0.8m, bay lơ lửng cạnh vai Mây (Y ~ +2m).
+   - Các bộ phận: thân ngà (#F5D9A0), 2 tai vểnh, lõi phát sáng (#FFCE83), 2 mắt (#332032).
+   - Trạng thái: bay lượn bình thường, co nhỏ khi Bóng Mực lại gần (<5m), xoay tròn ăn mừng khi thắp đèn.
+
+--------------------------------------------------------------------------------
+II. KẺ ĐỊCH & SINH VẬT GÂY RỐI
+--------------------------------------------------------------------------------
+3. Bóng Mực (Kẻ địch chính — tất cả 3 Đêm)
+   - Vị trí code: src/game/scene.ts -> createShadeGroup()
+   - Kích thước hiện tại: bán kính ~0.65m, cao ~1.8m.
+   - Màu sắc: thân #120A1A, viền & 2 mắt #7A3CFF (mù màu: #00B3FF), choáng #3A3450.
+   - Trạng thái cần phân biệt rõ:
+     + spawning (nhỏ hơn, mới hiện ra)
+     + wander (lang thang)
+     + chase (đuổi Mây)
+     + drain (đứng yên hút dầu đèn yếu)
+     + recoil (lùi lại sau khi đánh trúng Mây)
+     + stunned (bị choáng, xoay/nhạt màu)
+
+4. Gió Lạc / Drifter (Kẻ địch cướp đom đóm — Đêm 2 & Đêm 3)
+   - Vị trí code: src/game/scene.ts -> createDrifterGroup()
+   - Kích thước hiện tại: dài ~2.2m, bay ở độ cao Y ~1.4m.
+   - Mô tả: dải lụa xám xanh (#8FA3B8) bay nhanh, mũi nhọn phía trước.
+   - Trạng thái: idle (lượn chậm), chase (lao tới cướp), flee (bay trốn).
+
+5. Sương Giăng (Kẻ địch tuần tra trang trí — Sáng tạo Đêm 1)
+   - Vị trí code: src/game/creative.ts -> spawnFogWisps()
+   - Mô tả: lõi tím đậm mang mặt nạ sứ trắng (#EEE0DF), mắt tím sẫm, 6 dải lụa tím bay phía sau và vòng sáng hồng (#F472B6) dưới chân.
+
+6. Đèn Lạc (Sinh vật tinh nghịch — Sáng tạo)
+   - Vị trí code: src/game/festival.ts
+   - Mô tả: chiếc đèn lồng nhỏ màu ngọc lam (#83DCD9) có 2 chân nhỏ và 2 tay nhỏ, chạy nhảy trốn khi Mây lại gần (<5m) và co lại khi trúng Tỏa Sáng.
+
+--------------------------------------------------------------------------------
+III. NHÂN VẬT PHỤ & CẢNH KÝ ỨC (SÁNG TẠO ĐÊM 1)
+--------------------------------------------------------------------------------
+7. Ông Lái Đò & Bến Thuyền (Nhân vật phụ Đêm 1)
+   - Vị trí code: src/game/creative.ts -> buildDockAndNpc()
+   - Mô tả:
+     + Cầu cảng gỗ dài 6m, rộng 3.2m ở rìa nam đảo (0, 0, -37.2).
+     + Thuyền gỗ dài 4m, rộng 1.8m bập bềnh trên biển mây có đèn lồng nhỏ ở mũi thuyền.
+     + Ông Lái Đò mặc áo tơi xám (#64748B), đội nón nâu (#926239), bên cạnh có đèn dầu vàng ấm.
+     + Lúc thắng Đêm 1: trên thuyền hiện 5 bóng hành khách (#C1E9DC) và vệt sáng đằng sau khi rời bến.
+
+8. Cá Voi Mây (Sự kiện bầu trời khi thắp >= 3 đèn — Sáng tạo)
+   - Vị trí code: src/game/festival.ts
+   - Mô tả: thân dài ~10m màu xanh mây mờ (#A0CBD7) bụng kem (#F2E9D5), 2 vây bên, đuôi 2 thùy, mang 9 đèn lồng nhỏ trên lưng, có bóng đổ trên mặt đảo.
+
+9. 5 Cảnh Ký Ức (Hiện ra phía sau mỗi Đèn Lồng khi được thắp — Sáng tạo)
+   - Vị trí code: src/game/memories.ts -> IslandMemories
+   - Gồm 5 tiểu cảnh đặt cách chân đèn 5.8m:
+     + L1 - Bến đợi: 5 chiếc thuyền giấy nhỏ.
+     + L2 - Sân chơi: 3 bóng trẻ nhỏ cầm đèn lồng.
+     + L3 - Quán cũ: bàn tròn, ấm trà, 2 ghế gỗ và 5 đốm khói bốc lên.
+     + L4 - Vườn nhà: hàng rào gỗ 7 cọc và 7 bông hoa giấy.
+     + L5 - Đêm hội: vòng tròn mặt trời 12 tia, 2 cột cổng gỗ và 7 đèn treo.
+
+--------------------------------------------------------------------------------
+IV. VẬT PHẨM, CÔNG TRÌNH & ĐỊA HÌNH 3 HÒN ĐẢO
+--------------------------------------------------------------------------------
+10. Đèn Lồng Lớn (Mục tiêu chính: Đêm 1 có 5, Đêm 2 có 6, Đêm 3 có 7)
+    - Vị trí code: src/game/scene.ts -> createLanternVisual()
+    - Kích thước: bệ đá bán kính ~0.95m, cột gỗ cao ~2.5m, lồng đèn ở độ cao Y=3.0m, thanh dầu nổi ở Y=4.05m.
+    - Trạng thái:
+      + Chưa thắp / Tắt: màu #5B5F6E, xẹp 20% theo chiều cao và có vết rách giấy.
+      + Đang sáng: lõi #FFE9B0, phát sáng #FFB347, hiện vòng an toàn bán kính 6m trên mặt đất (ẩn vòng khi fuel < 30).
+      + Sắp hết dầu (fuel < 30): đèn và thanh dầu nhấp nháy 1 Hz.
+
+11. Đom Đóm / Mote (Vật phẩm thu thập)
+    - Vị trí code: src/game/scene.ts
+    - Mô tả: lõi sáng #FFF6C2 bán kính 0.24m + quầng sáng #FFE58A bán kính 0.42m, bay nhấp nhô ở Y ~0.8m.
+
+12. Bùa Gió / Wind Charm (Vật phẩm Đêm 2 & Đêm 3)
+    - Vị trí code: src/game/scene.ts -> createCharmGroup()
+    - Mô tả: lá bùa đỏ (#C8102E) viền vàng (#F2C14E), cao ~0.9m, xoay tròn ở Y ~1.05m.
+
+13. Bục Nhảy / Jump Pad (Đêm 2 có 2 bục, Đêm 3 có 1 bục)
+    - Vị trí code: src/game/scene.ts -> loadNight()
+    - Mô tả: đĩa tròn bán kính 1.0m, màu vàng phát sáng (#F2C14E / #FFB347).
+
+14. Địa hình 3 Đêm (src/game/scene.ts -> loadNight() & src/core/maps.ts)
+    - Đêm 1 (Đảo Bến): đĩa cỏ tròn bán kính 40m (#2F5D50), viền cát (#C9B48A), bệ đá trung tâm bán kính 2.5m.
+    - Đêm 2 (Đảo Cau): 2 đĩa tròn bán kính 28m tại (0,0,0) và (70,0,0), nối bằng cầu tre rộng 4m dài 18m (#6B4A2F) không lan can.
+    - Đêm 3 (Đảo Chuông): đảo tròn bán kính 45m (Y=0); tầng 1 hình vành khăn (Y=3, R=12..24m, z>0); 2 dốc gỗ rộng 3m ở góc 30° và 150°; tầng 2 đĩa tròn (Y=6, R=8m); Tháp Chuông ở tâm tầng 2 (trụ gỗ bán kính 2m cao 8m, mái nón cát và quả chuông vàng #F2C14E).
+    - Nền chung: biển mây (#12384A), các cụm mây bồng bềnh quanh đảo, bầu trời sao, lá bay vàng khi có gió Đêm 3.
+
+15. Thiên nhiên trang trí trên đảo (src/game/decor.ts — tắt khi benchmark)
+    - Cây thông / tùng 2 tầng tán (Đêm 1 & Đêm 3).
+    - Cây cau cao thân mảnh, tán 6 lá (Đêm 2 - Đảo Cau).
+    - Bụi cỏ kèm cụm 4 bông hoa phát sáng dịu (#FFE58A, #FFF6C2).
+    - Vũng nước lấp lánh (#1E607A) có vòng gợn sóng và 4 viên đá cuội (#5B5F6E) ven bờ.
+================================================================================

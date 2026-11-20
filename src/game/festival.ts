@@ -15,6 +15,9 @@ export interface FestivalState {
 export class LanternFestival {
   private readonly memories: IslandMemories;
   private readonly tan = new THREE.Group();
+  private readonly tanTail = new THREE.Group();
+  private readonly rogueLegs: THREE.Group[] = [];
+  private readonly rogueArms: THREE.Group[] = [];
   private readonly whale = new THREE.Group();
   private readonly shadow: THREE.Mesh;
   private readonly rogue = new THREE.Group();
@@ -42,6 +45,16 @@ export class LanternFestival {
     }
     shape(this.tan, new THREE.SphereGeometry(0.16, 8, 6), this.glow, 0, -0.07, 0.23);
     for (const x of [-0.13, 0.13]) shape(this.tan, new THREE.SphereGeometry(0.045, 6, 5), paper(0x332032), x, 0.14, 0.26);
+    // Tàn: inner ears, fluffy cheeks, little paws and a glowing-tipped tail
+    for (const x of [-0.23, 0.23]) {
+      shape(this.tan, new THREE.ConeGeometry(0.06, 0.3, 3), this.glow, x, 0.42, 0.04).rotation.z = -x;
+      shape(this.tan, new THREE.SphereGeometry(0.075, 6, 5), ivory, x * 0.95, -0.02, 0.2);
+      shape(this.tan, new THREE.SphereGeometry(0.06, 6, 5), ivory, x * 0.62, -0.34, 0.14);
+    }
+    this.tanTail.position.set(0, -0.08, -0.28);
+    shape(this.tanTail, new THREE.SphereGeometry(0.13, 8, 6), ivory, 0, 0.02, -0.1).scale.set(0.75, 0.75, 1.5);
+    shape(this.tanTail, new THREE.SphereGeometry(0.085, 8, 6), this.glow, 0, 0.08, -0.34);
+    this.tan.add(this.tanTail);
     scene.add(this.tan);
 
     const cloud = paper(0xa0cbd7, 0.75);
@@ -67,9 +80,25 @@ export class LanternFestival {
     this.shadow.visible = false;
 
     littleLantern(this.rogue, 0, 0.9, 0, paper(0x83dcd9));
-    for (const x of [-0.18, 0.18]) {
-      shape(this.rogue, new THREE.CylinderGeometry(0.035, 0.025, 0.5, 5), ivory, x, 0.3);
-      shape(this.rogue, new THREE.SphereGeometry(0.055, 6, 5), ivory, x, 1, 0.3);
+    // Đèn Lạc: cheeky face, swinging little arms and stepping legs
+    const faceMat = paper(0x1d2b3a);
+    for (const x of [-0.1, 0.1]) shape(this.rogue, new THREE.SphereGeometry(0.04, 6, 5), faceMat, x, 0.98, 0.27);
+    shape(this.rogue, new THREE.TorusGeometry(0.07, 0.014, 5, 10, Math.PI), faceMat, 0, 0.9, 0.28).rotation.z = Math.PI;
+    for (const x of [-0.14, 0.14]) {
+      const leg = new THREE.Group();
+      leg.position.set(x, 0.56, 0);
+      shape(leg, new THREE.CylinderGeometry(0.035, 0.028, 0.46, 6).translate(0, -0.23, 0), ivory);
+      shape(leg, new THREE.SphereGeometry(0.07, 6, 5), ivory, 0, -0.47, 0.04).scale.set(1, 0.7, 1.4);
+      this.rogue.add(leg);
+      this.rogueLegs.push(leg);
+    }
+    for (const x of [-0.3, 0.3]) {
+      const arm = new THREE.Group();
+      arm.position.set(x, 0.92, 0);
+      shape(arm, new THREE.CylinderGeometry(0.025, 0.02, 0.3, 5).translate(0, -0.15, 0), ivory).rotation.z = x > 0 ? -0.4 : 0.4;
+      shape(arm, new THREE.SphereGeometry(0.045, 6, 5), ivory, x > 0 ? 0.11 : -0.11, -0.28, 0);
+      this.rogue.add(arm);
+      this.rogueArms.push(arm);
     }
     this.rogue.position.set(7, 0, 5);
     scene.add(this.rogue);
@@ -146,7 +175,18 @@ export class LanternFestival {
       if (Math.hypot(p.x, p.z) > 32) { p.x *= 0.98; p.z *= 0.98; }
       p.y = Math.abs(Math.sin(this.time * 12)) * 0.4;
       this.rogue.rotation.z = Math.sin(this.time * 12) * 0.22;
-    } else { p.y = 0; this.rogue.rotation.z = 0; }
+      const stride = Math.sin(this.time * 12) * 0.8;
+      this.rogueLegs[0].rotation.x = stride;
+      this.rogueLegs[1].rotation.x = -stride;
+      this.rogueArms[0].rotation.x = -stride;
+      this.rogueArms[1].rotation.x = stride;
+    } else {
+      p.y = 0;
+      this.rogue.rotation.z = 0;
+      for (const limb of [...this.rogueLegs, ...this.rogueArms]) limb.rotation.x = 0;
+    }
+    this.tanTail.rotation.y = Math.sin(this.time * 4) * 0.5;
+    this.tanTail.rotation.x = -0.3 + Math.sin(this.time * 2.5) * 0.12;
     this.rogue.scale.setScalar(this.reveal > 0 ? 0.55 : 1);
 
     const lit = snapshot.lanterns.filter(l => l.lit).length;
