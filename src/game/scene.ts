@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { getNightMap } from "../core/maps.js";
 import type { GameStateSnapshot, NightNumber, TuningConfig, Vec3 } from "../core/types.js";
+import { IslandDecor } from "./decor.js";
 
 // Standard Ticket-02 color palette
 const PALETTE = {
@@ -56,6 +57,7 @@ export class IslandSceneView {
   private readonly fog: THREE.FogExp2;
 
   private readonly mapGroup = new THREE.Group();
+  private readonly decor = new IslandDecor();
   private readonly playerGroup: THREE.Group;
   private readonly playerLanternLight: THREE.PointLight;
   private readonly playerHatLantern: THREE.Mesh;
@@ -135,6 +137,7 @@ export class IslandSceneView {
 
   setBenchMode(enabled: boolean): void {
     this.benchMode = enabled;
+    this.decor.group.visible = !enabled;
     if (enabled) {
       this.renderer.setPixelRatio(1);
     }
@@ -191,6 +194,7 @@ export class IslandSceneView {
     this.scene.add(this.dirLight);
 
     this.scene.add(this.mapGroup);
+    this.scene.add(this.decor.group);
     this.buildSkyAndSea();
     this.buildWindLeaves();
     this.loadNight(1);
@@ -398,6 +402,10 @@ export class IslandSceneView {
       disc.position.set(pad.pos[0], pad.pos[1] + 0.12, pad.pos[2]);
       this.mapGroup.add(disc);
     }
+
+    // Build stylized nature decor (hidden automatically in benchmark mode)
+    this.decor.buildForNight(night);
+    this.decor.group.visible = !this.benchMode;
   }
 
   private buildPlayerMesh(): {
@@ -875,9 +883,12 @@ export class IslandSceneView {
       }
     }
 
-    // 10. Clouds drift
+    // 10. Clouds drift & water puddle ripples
     for (let i = 0; i < this.cloudMeshes.length; i++) {
       this.cloudMeshes[i].position.y = -3.4 + Math.sin(this.animTime * 0.5 + i) * 0.4;
+    }
+    if (!this.benchMode) {
+      this.decor.update(dt, this.reducedMotion);
     }
 
     // 11. Camera
