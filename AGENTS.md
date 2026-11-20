@@ -1,13 +1,18 @@
-# AGENTS.md — Đảo Đèn Lồng (AI SDLC Harness — Phase 3 / Contract v1.2)
+# AGENTS.md — Đảo Đèn Lồng (AI SDLC Harness — Phase 4 / Contract v1.3)
 
 ## Commands
 - Install: `npm ci`
-- Build (Web + Headless CLI): `npm run build`
+- Build (Web + Headless/Bench/Soak/Run CLI): `npm run build`
+- Run playable game: `node dist/cli/run.js` (supports `--export-leaderboard <out.json>`)
 - Typecheck: `npm run typecheck`
 - Tests (unit + headless scenarios): `npm test`
 - Full verification gate: `npm run verify`
 - Headless CLI (`--night 1 | 2 | 3`):
   `node dist/cli/headless.js --seed 1 --night 1 --ticks 600 --out out.jsonl`
+- Benchmark (`1280x720`, 200 shades, 100 motes, 3s warmup + 30s measure):
+  `node dist/cli/bench.js --seed 42 --duration 30 --out bench.json`
+- Soak test (10 consecutive nights headless):
+  `node dist/cli/soak.js --seed 7 --nights 10 --out soak.json`
 
 ## Architecture Rules
 1. `src/core/` MUST stay pure TypeScript with ZERO imports from `three`, DOM/browser APIs, or `node:fs`.

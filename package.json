@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/unit/*.test.js dist-test/tests/scenarios/*.test.js",
     "verify": "npm run typecheck && npm run build && node scripts/verify.mjs",
-    "headless": "node dist/cli/headless.js"
+    "headless": "node dist/cli/headless.js",
+    "bench": "node dist/cli/bench.js",
+    "soak": "node dist/cli/soak.js",
+    "start": "node dist/cli/run.js"
   },
   "dependencies": {
     "three": "^0.170.0"

@@ -1,9 +1,11 @@
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "team": "2A202603496-TranManhHung",
   "build_cmd": "npm ci && npm run build",
-  "run_cmd": "npm run preview -- --host 127.0.0.1 --port 4173",
+  "run_cmd": "node dist/cli/run.js",
   "headless_cmd": "node dist/cli/headless.js",
+  "bench_cmd": "node dist/cli/bench.js",
+  "soak_cmd": "node dist/cli/soak.js",
   "tuning": {
     "player_speed": 6.0,
     "carry_capacity": 10,
